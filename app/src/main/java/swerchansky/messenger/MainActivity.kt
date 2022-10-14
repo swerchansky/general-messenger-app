@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
          messages.addAll(
             messageService!!.messages.subList(
                initialSize,
-               messageService!!.messages.lastIndex
+               messageService!!.messages.size
             )
          )
          recycler.post {
@@ -116,6 +116,4 @@ class MainActivity : AppCompatActivity() {
          }
       }
    }
-
-//   private fun <T> T.weak() = WeakReference(this)
 }

@@ -11,7 +11,9 @@ import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -19,30 +21,42 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import swerchansky.Constants.MESSAGES_INTERVAL
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_MESSAGE
+import swerchansky.Constants.TIME_ZONE
+import swerchansky.messenger.Data
 import swerchansky.messenger.Message
+import swerchansky.messenger.Text
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.charset.StandardCharsets
+import java.util.*
 import java.util.concurrent.Semaphore
 
 
 class MessageService : Service() {
-   private val semaphore = Semaphore(1, true)
+   companion object {
+      const val TAG = "MessageService"
+   }
+
+   private val semaphoreReceive = Semaphore(1, true)
    private val receiveMessageHandler = Handler(Looper.myLooper()!!)
 
    private var messageReceiver = object : Runnable {
       @Synchronized
       override fun run() {
          try {
-            val thread = synchronized(messages) {
-               Thread {
-                  semaphore.acquire()
-                  val newMessages = getMoreMessages((messages.size + 1).toLong())
-                  getImages(newMessages)
-                  messages += newMessages
-                  sendNewMessagesToActivity()
-                  semaphore.release()
+            val thread = Thread {
+               semaphoreReceive.acquire()
+               val newMessages = try {
+                  getMoreMessages((messages.size + 1).toLong())
+               } catch (e: Exception) {
+                  mutableListOf()
                }
+               getImages(newMessages)
+               messages += newMessages
+               sendNewMessagesToActivity()
+               semaphoreReceive.release()
             }
+
             thread.start()
          } finally {
             receiveMessageHandler.postDelayed(this, MESSAGES_INTERVAL)
@@ -50,10 +64,10 @@ class MessageService : Service() {
       }
    }
 
-   private val sendMessageReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+   private val sendMessageListener: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
-            SEND_MESSAGE -> println("YEAH ${intent.getStringExtra("text")}")
+            SEND_MESSAGE -> prepareAndSendTextMessage(intent.getStringExtra("text") ?: "")
          }
       }
    }
@@ -63,7 +77,7 @@ class MessageService : Service() {
    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
       startMessageReceiver()
       LocalBroadcastManager.getInstance(this)
-         .registerReceiver(sendMessageReceiver, IntentFilter("mainActivity"))
+         .registerReceiver(sendMessageListener, IntentFilter("mainActivity"))
       return super.onStartCommand(intent, flags, startId)
    }
 
@@ -73,7 +87,7 @@ class MessageService : Service() {
 
    override fun onUnbind(intent: Intent?): Boolean {
       stopMessageReceiver()
-      LocalBroadcastManager.getInstance(this).unregisterReceiver(sendMessageReceiver)
+      LocalBroadcastManager.getInstance(this).unregisterReceiver(sendMessageListener)
       return super.onUnbind(intent)
    }
 
@@ -87,10 +101,51 @@ class MessageService : Service() {
       LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
    }
 
+   private fun prepareAndSendTextMessage(
+      text: String,
+      from: String = "swerchansky",
+      to: String = "1@ch"
+   ) {
+      if (text.isNotEmpty()) {
+         val mapper = JsonMapper
+            .builder()
+            .serializationInclusion(JsonInclude.Include.NON_NULL)
+            .build()
+            .registerModule(KotlinModule.Builder().build())
+         val message = Message(
+            from,
+            to,
+            Data(Text = Text(text)),
+            (Date().time + TIME_ZONE).toString()
+         )
+         val json = mapper.writeValueAsString(message).replaceFirst("text", "Text")
+         Thread {
+            sendTextMessage(json)
+         }.start()
+      }
+   }
+
+   private fun sendTextMessage(json: String) {
+      val url = URL("http://213.189.221.170:8008/1ch")
+      val connection = url.openConnection() as HttpURLConnection
+      val message = json.toByteArray(StandardCharsets.UTF_8)
+      val outLength = message.size
+      connection.apply {
+         requestMethod = "POST"
+         doInput = true
+      }
+
+      connection.setFixedLengthStreamingMode(outLength)
+      connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+      connection.connect()
+      connection.outputStream.use { os -> os.write(message) }
+      Log.i(TAG, "send message response code: ${connection.responseCode}")
+   }
+
    private fun getImages(messages: MutableList<Message>) {
       messages.forEach { message ->
-         if (message.data.image.link.isNotEmpty()) {
-            message.data.image.bitmap = downloadThumbImage(message.data.image.link)
+         if (message.data.Image?.link?.isNotEmpty() == true) {
+            message.data.Image.bitmap = downloadThumbImage(message.data.Image.link)
          }
       }
    }

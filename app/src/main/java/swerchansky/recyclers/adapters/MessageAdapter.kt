@@ -45,12 +45,12 @@ class MessageAdapter(private val messages: List<Message>) :
       val message = messages[position]
       if (getItemViewType(position) == TEXT) {
          val textHolder = holder as TextViewHolder
-         textHolder.text.text = message.data.text.text
-         textHolder.name.text = message.id.toString()
+         textHolder.text.text = message.data.Text?.text ?: ""
+         textHolder.name.text = message.from
          textHolder.time.text = dateFormat.format(Date(message.time.toLong()))
       } else {
          val photoHolder = holder as PhotoViewHolder
-         photoHolder.photo.setImageBitmap(message.data.image.bitmap)
+         photoHolder.photo.setImageBitmap(message.data.Image?.bitmap)
          photoHolder.name.text = message.id.toString()
          photoHolder.time.text = dateFormat.format(Date(message.time.toLong()))
       }
@@ -59,7 +59,7 @@ class MessageAdapter(private val messages: List<Message>) :
    override fun getItemCount() = messages.size
 
    override fun getItemViewType(position: Int): Int {
-      return if (messages[position].data.image.link.isNotEmpty()) {
+      return if (messages[position].data.Image?.link?.isNotEmpty() == true) {
          PHOTO
       } else {
          TEXT

@@ -95,6 +95,25 @@ class MessageService : Service() {
       fun getService() = this@MessageService
    }
 
+   fun getFullImage(position: Int): Bitmap? {
+      val message = messages[position]
+      var image: Bitmap? = null
+      val thread = Thread {
+         image = downloadFullImage(message.data.Image!!.link)
+      }
+      thread.start()
+      synchronized(thread) {
+          thread.join()
+      }
+      return image
+   }
+
+   private fun downloadFullImage(link: String): Bitmap {
+      val url = URL("http://213.189.221.170:8008/img/$link")
+      val stream = url.openStream()
+      return BitmapFactory.decodeStream(stream)
+   }
+
    private fun prepareAndSendTextMessage(
       text: String,
       from: String = "swerchansky",

@@ -1,8 +1,11 @@
 package swerchansky.recyclers.adapters
 
+import android.content.Context
+import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+import swerchansky.messenger.FullScreenImageActivity
 import swerchansky.messenger.Message
 import swerchansky.messenger.databinding.PhotoItemBinding
 import swerchansky.messenger.databinding.TextItemBinding
@@ -11,7 +14,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 
-class MessageAdapter(private val messages: List<Message>) :
+class MessageAdapter(private val context: Context, private val messages: List<Message>) :
    RecyclerView.Adapter<RecyclerView.ViewHolder>() {
    companion object {
       private const val TEXT = 1
@@ -53,6 +56,11 @@ class MessageAdapter(private val messages: List<Message>) :
          photoHolder.photo.setImageBitmap(message.data.Image?.bitmap)
          photoHolder.name.text = message.id.toString()
          photoHolder.time.text = dateFormat.format(Date(message.time.toLong()))
+         photoHolder.photoMessage.setOnClickListener {
+            val intent = Intent(context, FullScreenImageActivity::class.java)
+            intent.putExtra("messagePosition", position)
+            context.startActivity(intent)
+         }
       }
    }
 
@@ -78,6 +86,7 @@ class MessageAdapter(private val messages: List<Message>) :
       val name = messageItemBinding.name
       val photo = messageItemBinding.photo
       val time = messageItemBinding.time
+      val photoMessage = messageItemBinding.photoMessage
    }
 
 }

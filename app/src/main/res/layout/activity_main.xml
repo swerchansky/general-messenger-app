@@ -33,6 +33,7 @@
         app:layout_constraintBottom_toBottomOf="parent">
 
         <ImageButton
+            android:id="@+id/attachmentButton"
             android:layout_width="55dp"
             android:layout_height="55dp"
             android:contentDescription="@string/attachments"

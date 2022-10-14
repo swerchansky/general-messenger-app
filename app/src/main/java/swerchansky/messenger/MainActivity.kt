@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
 
       recycler.apply {
          layoutManager = manager
-         adapter = MessageAdapter(messages)
+         adapter = MessageAdapter(this@MainActivity, messages)
       }
    }
 

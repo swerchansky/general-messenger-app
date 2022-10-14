@@ -6,7 +6,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -15,6 +14,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Messenger"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
         <activity
             android:name=".MainActivity"
@@ -25,11 +25,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".FullScreenImageActivity"
+            android:label="@string/full_screen_image_activity_display_message">
+        </activity>
+
         <service
             android:name="swerchansky.services.MessageService"
-            android:label="messageService"
-            android:enabled="true">
-        </service>
+            android:enabled="true"
+            android:label="messageService" />
     </application>
 
 </manifest>

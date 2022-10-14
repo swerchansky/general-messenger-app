@@ -22,7 +22,6 @@ import swerchansky.Constants.MESSAGES_INTERVAL
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_MESSAGE
 import swerchansky.Constants.SEND_MESSAGE_FAILED
-import swerchansky.Constants.TIME_ZONE
 import swerchansky.messenger.Data
 import swerchansky.messenger.Message
 import swerchansky.messenger.Text
@@ -111,7 +110,7 @@ class MessageService : Service() {
             from,
             to,
             Data(Text = Text(text)),
-            (Date().time + TIME_ZONE).toString()
+            Date().time.toString()
          )
          val json = mapper.writeValueAsString(message).replaceFirst("text", "Text")
          Thread {
@@ -154,7 +153,7 @@ class MessageService : Service() {
       return BitmapFactory.decodeStream(stream)
    }
 
-   private fun getMoreMessages(from: Long, count: Long = 20): MutableList<Message> {
+   private fun getMoreMessages(from: Long, count: Long = 10): MutableList<Message> {
       val url = messagesURLWithParams(
          mapOf(
             "limit" to count.toString(),

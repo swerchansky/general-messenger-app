@@ -121,6 +121,15 @@ class MainActivity : AppCompatActivity() {
          recycler.post {
             recycler.adapter?.notifyItemRangeInserted(initialSize, updatedSize)
          }
+         val manager = recycler.layoutManager as LinearLayoutManager
+         if (
+            initialSize != updatedSize &&
+            manager.findLastVisibleItemPosition() == initialSize - 1
+         ) {
+            recycler.adapter?.let {
+               recycler.smoothScrollToPosition(it.itemCount - 1)
+            }
+         }
       }
    }
 }

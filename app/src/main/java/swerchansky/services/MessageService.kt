@@ -21,6 +21,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import swerchansky.Constants.MESSAGES_INTERVAL
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_MESSAGE
+import swerchansky.Constants.SEND_MESSAGE_FAILED
 import swerchansky.Constants.TIME_ZONE
 import swerchansky.messenger.Data
 import swerchansky.messenger.Message
@@ -53,7 +54,7 @@ class MessageService : Service() {
                }
                getImages(newMessages)
                messages += newMessages
-               sendNewMessagesToActivity()
+               sendIntent(NEW_MESSAGES)
                semaphoreReceive.release()
             }
 
@@ -95,12 +96,6 @@ class MessageService : Service() {
       fun getService() = this@MessageService
    }
 
-   private fun sendNewMessagesToActivity() {
-      val intent = Intent("messageService")
-      intent.putExtra("type", NEW_MESSAGES)
-      LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-   }
-
    private fun prepareAndSendTextMessage(
       text: String,
       from: String = "swerchansky",
@@ -140,6 +135,9 @@ class MessageService : Service() {
       connection.connect()
       connection.outputStream.use { os -> os.write(message) }
       Log.i(TAG, "send message response code: ${connection.responseCode}")
+      if (connection.responseCode != 200) {
+         sendIntent(SEND_MESSAGE_FAILED, connection.responseCode.toString())
+      }
    }
 
    private fun getImages(messages: MutableList<Message>) {
@@ -187,6 +185,13 @@ class MessageService : Service() {
          }
       }
       return URL(fullPath)
+   }
+
+   private fun sendIntent(type: Int, text: String = "") {
+      val intent = Intent("messageService")
+      intent.putExtra("type", type)
+      intent.putExtra("text", text)
+      LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
    }
 
    private fun startMessageReceiver() {

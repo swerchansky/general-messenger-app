@@ -11,6 +11,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_MESSAGE
+import swerchansky.Constants.SEND_MESSAGE_FAILED
+import swerchansky.ToastUtil.sendToast
 import swerchansky.messenger.databinding.ActivityMainBinding
 import swerchansky.recyclers.adapters.MessageAdapter
 import swerchansky.services.MessageService
@@ -42,6 +44,10 @@ class MainActivity : AppCompatActivity() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
             NEW_MESSAGES -> updateMessages()
+            SEND_MESSAGE_FAILED -> sendToast(
+               "server error with code: ${intent.getStringExtra("text")}",
+               this@MainActivity
+            )
          }
       }
    }

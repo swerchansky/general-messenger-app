@@ -99,6 +99,7 @@ class MainActivity : AppCompatActivity() {
       intent.putExtra("type", SEND_MESSAGE)
       intent.putExtra("text", text)
       LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+      mainActivity.messageField.setText("")
    }
 
    private fun updateMessages() {

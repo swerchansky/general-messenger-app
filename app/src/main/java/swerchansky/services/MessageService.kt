@@ -1,7 +1,10 @@
 package swerchansky.services
 
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Binder
@@ -13,6 +16,9 @@ import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import swerchansky.Constants.MESSAGES_INTERVAL
+import swerchansky.Constants.NEW_MESSAGES
+import swerchansky.Constants.SEND_MESSAGE
 import swerchansky.messenger.Message
 import java.net.HttpURLConnection
 import java.net.URL
@@ -20,13 +26,8 @@ import java.util.concurrent.Semaphore
 
 
 class MessageService : Service() {
-   companion object {
-      private const val NEW_MESSAGES = 1
-   }
-
    private val semaphore = Semaphore(1, true)
    private val receiveMessageHandler = Handler(Looper.myLooper()!!)
-   private var messagesInterval = 2000L
 
    private var messageReceiver = object : Runnable {
       @Synchronized
@@ -38,14 +39,21 @@ class MessageService : Service() {
                   val newMessages = getMoreMessages((messages.size + 1).toLong())
                   getImages(newMessages)
                   messages += newMessages
-                  sendMessage()
+                  sendNewMessagesToActivity()
                   semaphore.release()
-                  println("ABOBA")
                }
             }
             thread.start()
          } finally {
-            receiveMessageHandler.postDelayed(this, messagesInterval)
+            receiveMessageHandler.postDelayed(this, MESSAGES_INTERVAL)
+         }
+      }
+   }
+
+   private val sendMessageReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+      override fun onReceive(context: Context?, intent: Intent) {
+         when (intent.getIntExtra("type", -1)) {
+            SEND_MESSAGE -> println("YEAH ${intent.getStringExtra("text")}")
          }
       }
    }
@@ -54,6 +62,8 @@ class MessageService : Service() {
 
    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
       startMessageReceiver()
+      LocalBroadcastManager.getInstance(this)
+         .registerReceiver(sendMessageReceiver, IntentFilter("mainActivity"))
       return super.onStartCommand(intent, flags, startId)
    }
 
@@ -63,6 +73,7 @@ class MessageService : Service() {
 
    override fun onUnbind(intent: Intent?): Boolean {
       stopMessageReceiver()
+      LocalBroadcastManager.getInstance(this).unregisterReceiver(sendMessageReceiver)
       return super.onUnbind(intent)
    }
 
@@ -70,7 +81,7 @@ class MessageService : Service() {
       fun getService() = this@MessageService
    }
 
-   private fun sendMessage() {
+   private fun sendNewMessagesToActivity() {
       val intent = Intent("messageService")
       intent.putExtra("type", NEW_MESSAGES)
       LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
@@ -91,7 +102,7 @@ class MessageService : Service() {
    }
 
    private fun getMoreMessages(from: Long, count: Long = 20): MutableList<Message> {
-      val url = urlWithParams(
+      val url = messagesURLWithParams(
          mapOf(
             "limit" to count.toString(),
             "lastKnownId" to from.toString()
@@ -109,7 +120,7 @@ class MessageService : Service() {
       return mapper.readValue(response)
    }
 
-   private fun urlWithParams(
+   private fun messagesURLWithParams(
       parameters: Map<String, String> = emptyMap(),
       path: String = "http://213.189.221.170:8008/1ch"
    ): URL {

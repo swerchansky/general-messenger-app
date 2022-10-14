@@ -18,7 +18,7 @@ class MessageAdapter(private val messages: List<Message>) :
       private const val PHOTO = 2
    }
 
-   private val obj: DateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.ENGLISH)
+   private val dateFormat: DateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.ENGLISH)
 
    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
       if (viewType == TEXT) {
@@ -47,12 +47,12 @@ class MessageAdapter(private val messages: List<Message>) :
          val textHolder = holder as TextViewHolder
          textHolder.text.text = message.data.text.text
          textHolder.name.text = message.id.toString()
-         textHolder.time.text = obj.format(Date(message.time.toLong()))
+         textHolder.time.text = dateFormat.format(Date(message.time.toLong()))
       } else {
          val photoHolder = holder as PhotoViewHolder
          photoHolder.photo.setImageBitmap(message.data.image.bitmap)
          photoHolder.name.text = message.id.toString()
-         photoHolder.time.text = obj.format(Date(message.time.toLong()))
+         photoHolder.time.text = dateFormat.format(Date(message.time.toLong()))
       }
    }
 

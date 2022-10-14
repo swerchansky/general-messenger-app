@@ -9,6 +9,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import swerchansky.Constants.NEW_MESSAGES
+import swerchansky.Constants.SEND_MESSAGE
 import swerchansky.messenger.databinding.ActivityMainBinding
 import swerchansky.recyclers.adapters.MessageAdapter
 import swerchansky.services.MessageService
@@ -39,7 +41,7 @@ class MainActivity : AppCompatActivity() {
    private val messageReceiver: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
-            1 -> updateMessages()
+            NEW_MESSAGES -> updateMessages()
          }
       }
    }
@@ -50,6 +52,7 @@ class MainActivity : AppCompatActivity() {
       setContentView(mainActivity.root)
 
       initRecycler()
+      initSendListener()
 
       messageServiceIntent = Intent(this, MessageService::class.java)
       startService(messageServiceIntent)
@@ -74,6 +77,12 @@ class MainActivity : AppCompatActivity() {
       }
    }
 
+   private fun initSendListener() {
+      mainActivity.sendButton.setOnClickListener {
+         sendTextMessage(mainActivity.messageField.text.toString())
+      }
+   }
+
    private fun initRecycler() {
       recycler = mainActivity.messagesRecycler
 
@@ -83,6 +92,13 @@ class MainActivity : AppCompatActivity() {
          layoutManager = manager
          adapter = MessageAdapter(messages)
       }
+   }
+
+   private fun sendTextMessage(text: String) {
+      val intent = Intent("mainActivity")
+      intent.putExtra("type", SEND_MESSAGE)
+      intent.putExtra("text", text)
+      LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
    }
 
    private fun updateMessages() {

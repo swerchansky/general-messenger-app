@@ -11,15 +11,15 @@ data class Message(
 )
 
 data class Data(
-   val image: Image = Image(""),
-   val text: Text = Text(""),
+   val image: Image = Image(),
+   val text: Text = Text(),
 )
 
 data class Image(
-   val link: String,
+   val link: String = "",
    var bitmap: Bitmap? = null,
 )
 
 data class Text(
-   val text: String,
+   val text: String = "",
 )

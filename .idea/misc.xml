@@ -5,6 +5,7 @@
       <map>
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/attachments_icon.xml" value="0.24" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/message_background.xml" value="0.34" />
+        <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/send_button_background.xml" value="0.1135" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/send_icon.xml" value="0.24" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/activity_main.xml" value="0.27735042735042736" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/message.xml" value="0.33697916666666666" />

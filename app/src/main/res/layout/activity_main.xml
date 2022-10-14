@@ -29,6 +29,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:background="@color/white"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <ImageButton
@@ -50,10 +51,11 @@
             android:textIsSelectable="true" />
 
         <ImageButton
+            android:id="@+id/sendButton"
             android:layout_width="55dp"
             android:layout_height="55dp"
             android:contentDescription="@string/send"
-            android:background="@color/white"
+            android:background="@drawable/send_button_background"
             android:src="@drawable/send_icon" />
 
     </LinearLayout>

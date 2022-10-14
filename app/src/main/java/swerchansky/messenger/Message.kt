@@ -1,5 +1,7 @@
 package swerchansky.messenger
 
+import android.graphics.Bitmap
+
 data class Message(
    val id: Long,
    val data: Data,
@@ -15,6 +17,7 @@ data class Data(
 
 data class Image(
    val link: String,
+   var bitmap: Bitmap? = null,
 )
 
 data class Text(

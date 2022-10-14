@@ -8,6 +8,8 @@
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/send_icon.xml" value="0.24" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/activity_main.xml" value="0.27735042735042736" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/message.xml" value="0.33697916666666666" />
+        <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/message_item.xml" value="0.20580235720761558" />
+        <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/photo_item.xml" value="0.20580235720761558" />
       </map>
     </option>
   </component>

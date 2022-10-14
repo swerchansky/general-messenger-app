@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Message"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/message_background"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/name"
+        style="@style/SideInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/name" />
+
+    <ImageView
+        android:id="@+id/photo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:src="@mipmap/ic_launcher"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:contentDescription="@string/photo" />
+
+    <TextView
+        android:id="@+id/time"
+        style="@style/Time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/timeExample" />
+
+</LinearLayout>

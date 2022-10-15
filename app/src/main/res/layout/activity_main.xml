@@ -29,7 +29,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="@color/white"
+        android:background="@color/panel"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <ImageButton
@@ -37,7 +37,7 @@
             android:layout_width="55dp"
             android:layout_height="55dp"
             android:contentDescription="@string/attachments"
-            android:background="@color/white"
+            android:background="@color/panel"
             android:src="@drawable/attachments_icon" />
 
         <EditText
@@ -60,5 +60,19 @@
             android:src="@drawable/send_icon" />
 
     </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/scrollButton"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:paddingTop="3dp"
+        android:contentDescription="@string/scroll_down"
+        android:background="@drawable/send_button_background"
+        android:visibility="visible"
+        android:src="@drawable/scroll_icon"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/sendingPanel"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

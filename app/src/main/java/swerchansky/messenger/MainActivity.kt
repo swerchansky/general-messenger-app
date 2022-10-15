@@ -5,13 +5,20 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.view.View
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import swerchansky.Constants.ERROR
 import swerchansky.Constants.NEW_MESSAGES
+import swerchansky.Constants.SEND_IMAGE
+import swerchansky.Constants.SEND_IMAGE_FAILED
 import swerchansky.Constants.SEND_MESSAGE
 import swerchansky.Constants.SEND_MESSAGE_FAILED
+import swerchansky.Constants.SERVER_ERROR
 import swerchansky.ToastUtil.sendToast
 import swerchansky.messenger.databinding.ActivityMainBinding
 import swerchansky.recyclers.adapters.MessageAdapter
@@ -19,6 +26,11 @@ import swerchansky.services.MessageService
 
 
 class MainActivity : AppCompatActivity() {
+   companion object {
+      const val TAG = "MainActivity"
+      const val MESSAGE_SERVICE_TAG = "MessageService"
+   }
+
    private lateinit var mainActivity: ActivityMainBinding
    private lateinit var recycler: RecyclerView
    private lateinit var messageServiceIntent: Intent
@@ -48,6 +60,32 @@ class MainActivity : AppCompatActivity() {
                "server error with code: ${intent.getStringExtra("text")}",
                this@MainActivity
             )
+            SEND_IMAGE_FAILED -> sendToast(
+               "Cannot send image: ${intent.getStringExtra("text")}",
+               this@MainActivity
+            )
+            ERROR -> sendToast(
+               "${intent.getStringExtra("text")}",
+               this@MainActivity
+            )
+            SERVER_ERROR -> sendToast(
+               "Failed to connect to server",
+               this@MainActivity
+            )
+         }
+      }
+   }
+
+   private var launchImageChoose = registerForActivityResult(
+      ActivityResultContracts.StartActivityForResult()
+   ) { result: ActivityResult ->
+      if (result.resultCode == RESULT_OK) {
+         val data = result.data
+         data?.data?.let { selectedPhotoUri ->
+            val intent = Intent(TAG)
+            intent.putExtra("type", SEND_IMAGE)
+            intent.putExtra("uri", selectedPhotoUri.toString())
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
          }
       }
    }
@@ -63,12 +101,25 @@ class MainActivity : AppCompatActivity() {
       messageServiceIntent = Intent(this, MessageService::class.java)
       startService(messageServiceIntent)
       bindService(messageServiceIntent, boundServiceConnection, BIND_AUTO_CREATE)
+
+      mainActivity.attachmentButton.setOnClickListener {
+         imageChoose()
+      }
+
+      mainActivity.scrollButton.setOnClickListener {
+         if (mainActivity.scrollButton.visibility == View.VISIBLE) {
+            recycler.adapter?.let {
+               recycler.smoothScrollToPosition(it.itemCount - 1)
+            }
+            mainActivity.scrollButton.visibility = View.INVISIBLE
+         }
+      }
    }
 
    override fun onStart() {
       super.onStart()
       LocalBroadcastManager.getInstance(this)
-         .registerReceiver(messageReceiver, IntentFilter("messageService"))
+         .registerReceiver(messageReceiver, IntentFilter(MESSAGE_SERVICE_TAG))
    }
 
    override fun onPause() {
@@ -98,14 +149,34 @@ class MainActivity : AppCompatActivity() {
          layoutManager = manager
          adapter = MessageAdapter(this@MainActivity, messages)
       }
+
+      recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+         override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            super.onScrolled(recyclerView, dx, dy)
+            recycler.adapter?.let {
+               if (manager.findLastCompletelyVisibleItemPosition() == it.itemCount - 1) {
+                  mainActivity.scrollButton.visibility = View.INVISIBLE
+               } else {
+                  mainActivity.scrollButton.visibility = View.VISIBLE
+               }
+            }
+         }
+      })
+   }
+
+   private fun imageChoose() {
+      val intent = Intent()
+      intent.type = "image/*"
+      intent.action = Intent.ACTION_GET_CONTENT
+      launchImageChoose.launch(intent)
    }
 
    private fun sendTextMessage(text: String) {
-      val intent = Intent("mainActivity")
+      mainActivity.messageField.setText("")
+      val intent = Intent(TAG)
       intent.putExtra("type", SEND_MESSAGE)
       intent.putExtra("text", text)
       LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-      mainActivity.messageField.setText("")
    }
 
    private fun updateMessages() {
@@ -124,11 +195,9 @@ class MainActivity : AppCompatActivity() {
          val manager = recycler.layoutManager as LinearLayoutManager
          if (
             initialSize != updatedSize &&
-            manager.findLastVisibleItemPosition() == initialSize - 1
+            manager.findLastCompletelyVisibleItemPosition() == initialSize - 1
          ) {
-            recycler.adapter?.let {
-               recycler.smoothScrollToPosition(it.itemCount - 1)
-            }
+            mainActivity.scrollButton.visibility = View.VISIBLE
          }
       }
    }

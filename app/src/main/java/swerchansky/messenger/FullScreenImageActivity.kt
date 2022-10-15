@@ -23,7 +23,6 @@ class FullScreenImageActivity : AppCompatActivity() {
          val position = intent.getIntExtra("messagePosition", -1)
          if (position != -1) {
             val image = messageService!!.getFullImage(position)
-            println(image)
             fullScreenImageBinding.fullScreenImage.setImageBitmap(image)
          }
          isBound = true

@@ -70,7 +70,7 @@
         android:paddingTop="3dp"
         android:contentDescription="@string/scroll_down"
         android:background="@drawable/send_button_background"
-        android:visibility="visible"
+        android:visibility="invisible"
         android:src="@drawable/scroll_icon"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/sendingPanel"/>

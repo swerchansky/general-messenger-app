@@ -149,7 +149,12 @@ class MessageService : Service() {
       }
 
       val code = Date().time.toString()
-      val file = getTempFile(image, code)
+      val file = try {
+         getTempFile(image, code)
+      } catch (e: Exception) {
+         sendIntent(SEND_IMAGE_FAILED, "Can't create temp file")
+         return
+      }
       Thread {
          try {
             sendImageMessage(file, code)

@@ -58,9 +58,9 @@ class MessageService : Service() {
       .registerModule(KotlinModule.Builder().build())
 
    private var messageReceiver = object : Runnable {
-      @Synchronized
       override fun run() {
          try {
+            println("MessageService: receiveMessageHandler: run")
             updateMessages()
          } finally {
             receiveMessageHandler.postDelayed(this, messagesInterval)
@@ -83,17 +83,24 @@ class MessageService : Service() {
       startMessageReceiver()
       LocalBroadcastManager.getInstance(this)
          .registerReceiver(sendMessageListener, IntentFilter(MAIN_ACTIVITY_TAG))
-      return super.onStartCommand(intent, flags, startId)
+      return START_NOT_STICKY
    }
 
    override fun onBind(intent: Intent?): IBinder {
+      startMessageReceiver()
+      LocalBroadcastManager.getInstance(this)
+         .registerReceiver(sendMessageListener, IntentFilter(MAIN_ACTIVITY_TAG))
       return MyBinder()
    }
 
    override fun onUnbind(intent: Intent?): Boolean {
+      return super.onUnbind(intent)
+   }
+
+   override fun onDestroy() {
+      super.onDestroy()
       stopMessageReceiver()
       LocalBroadcastManager.getInstance(this).unregisterReceiver(sendMessageListener)
-      return super.onUnbind(intent)
    }
 
    inner class MyBinder : Binder() {
@@ -127,8 +134,14 @@ class MessageService : Service() {
             1500L
          }
          getImages(newMessages)
+         val initialSize = messages.size
          messages += newMessages
-         sendIntent(NEW_MESSAGES)
+         val updatedSize = messages.size
+         val intent = Intent(TAG)
+         intent.putExtra("type", NEW_MESSAGES)
+         intent.putExtra("initialSize", initialSize)
+         intent.putExtra("updatedSize", updatedSize)
+         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
          semaphoreReceive.release()
       }
 

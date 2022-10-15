@@ -34,7 +34,6 @@ class MainActivity : AppCompatActivity() {
    private lateinit var mainActivity: ActivityMainBinding
    private lateinit var recycler: RecyclerView
    private lateinit var messageServiceIntent: Intent
-   private val messages: MutableList<Message> = mutableListOf()
    private val mainHandler = Handler(Looper.getMainLooper())
    private var messageService: MessageService? = null
    private var isBound = false
@@ -43,6 +42,7 @@ class MainActivity : AppCompatActivity() {
       override fun onServiceConnected(name: ComponentName, service: IBinder) {
          val binderBridge: MessageService.MyBinder = service as MessageService.MyBinder
          messageService = binderBridge.getService()
+         recycler.adapter = MessageAdapter(this@MainActivity, messageService!!.messages)
          isBound = true
       }
 
@@ -55,7 +55,10 @@ class MainActivity : AppCompatActivity() {
    private val messageReceiver: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
-            NEW_MESSAGES -> updateMessages()
+            NEW_MESSAGES -> updateMessages(
+               intent.getIntExtra("initialSize", 0),
+               intent.getIntExtra("updatedSize", 0)
+            )
             SEND_MESSAGE_FAILED -> sendToast(
                "server error with code: ${intent.getStringExtra("text")}",
                this@MainActivity
@@ -147,7 +150,7 @@ class MainActivity : AppCompatActivity() {
 
       recycler.apply {
          layoutManager = manager
-         adapter = MessageAdapter(this@MainActivity, messages)
+         adapter = MessageAdapter(this@MainActivity, mutableListOf())
       }
 
       recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -179,16 +182,8 @@ class MainActivity : AppCompatActivity() {
       LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
    }
 
-   private fun updateMessages() {
+   private fun updateMessages(initialSize: Int, updatedSize: Int) {
       mainHandler.post {
-         val initialSize = recycler.adapter!!.itemCount
-         val updatedSize = messageService!!.messages.size
-         messages.addAll(
-            messageService!!.messages.subList(
-               initialSize,
-               messageService!!.messages.size
-            )
-         )
          recycler.post {
             recycler.adapter?.notifyItemRangeInserted(initialSize, updatedSize)
          }

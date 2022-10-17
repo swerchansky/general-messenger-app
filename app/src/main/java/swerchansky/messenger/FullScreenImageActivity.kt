@@ -22,8 +22,10 @@ class FullScreenImageActivity : AppCompatActivity() {
          messageService = binderBridge.getService()
          val position = intent.getIntExtra("messagePosition", -1)
          if (position != -1) {
-            val image = messageService!!.getFullImage(position)
-            fullScreenImageBinding.fullScreenImage.setImageBitmap(image)
+            Thread {
+               val image = messageService!!.getFullImage(position)
+               fullScreenImageBinding.fullScreenImage.setImageBitmap(image)
+            }.start()
          }
          isBound = true
       }

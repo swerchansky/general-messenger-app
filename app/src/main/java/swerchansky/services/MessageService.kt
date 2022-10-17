@@ -25,7 +25,10 @@ import swerchansky.Constants.SEND_IMAGE_FAILED
 import swerchansky.Constants.SEND_MESSAGE
 import swerchansky.Constants.SEND_MESSAGE_FAILED
 import swerchansky.Constants.SERVER_ERROR
+import swerchansky.db.databases.MessageDatabase
+import swerchansky.db.entities.MessageEntity
 import swerchansky.messenger.Data
+import swerchansky.messenger.Image
 import swerchansky.messenger.Message
 import swerchansky.messenger.Text
 import java.io.*
@@ -46,6 +49,7 @@ class MessageService : Service() {
    private var messagesInterval = 1500L
    private val semaphoreReceive = Semaphore(1, true)
    private val receiveMessageHandler = Handler(Looper.myLooper()!!)
+   private val messagesDatabase by lazy { MessageDatabase.getDatabase(this).messagesDAO() }
    private val receiveMapper = JsonMapper
       .builder()
       .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true)
@@ -60,7 +64,6 @@ class MessageService : Service() {
    private var messageReceiver = object : Runnable {
       override fun run() {
          try {
-            println("MessageService: receiveMessageHandler: run")
             updateMessages()
          } finally {
             receiveMessageHandler.postDelayed(this, messagesInterval)
@@ -72,24 +75,26 @@ class MessageService : Service() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
             SEND_MESSAGE -> prepareAndSendTextMessage(intent.getStringExtra("text") ?: "")
-            SEND_IMAGE -> prepareAndSendImageMessage(Uri.parse(intent.getStringExtra("uri")) ?: Uri.EMPTY)
+            SEND_IMAGE -> prepareAndSendImageMessage(
+               Uri.parse(intent.getStringExtra("uri")) ?: Uri.EMPTY
+            )
          }
       }
    }
 
    val messages: MutableList<Message> = mutableListOf()
 
-   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-      startMessageReceiver()
+   override fun onCreate() {
+      super.onCreate()
+      loadMessages()
       LocalBroadcastManager.getInstance(this)
          .registerReceiver(sendMessageListener, IntentFilter(MAIN_ACTIVITY_TAG))
-      return START_NOT_STICKY
+      receiveMessageHandler.post(messageReceiver)
    }
 
+   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
    override fun onBind(intent: Intent?): IBinder {
-      startMessageReceiver()
-      LocalBroadcastManager.getInstance(this)
-         .registerReceiver(sendMessageListener, IntentFilter(MAIN_ACTIVITY_TAG))
       return MyBinder()
    }
 
@@ -120,6 +125,15 @@ class MessageService : Service() {
       return image
    }
 
+   private fun loadMessages() {
+      Thread {
+         messagesDatabase.getAllMessages().forEach {
+            messages += it.toMessage()
+         }
+         startMessageReceiver()
+      }.start()
+   }
+
    private fun updateMessages() {
       val thread = Thread {
          semaphoreReceive.acquire()
@@ -136,6 +150,9 @@ class MessageService : Service() {
          getImages(newMessages)
          val initialSize = messages.size
          messages += newMessages
+         newMessages.forEach {
+            messagesDatabase.insertMessage(it.toEntity())
+         }
          val updatedSize = messages.size
          val intent = Intent(TAG)
          intent.putExtra("type", NEW_MESSAGES)
@@ -359,7 +376,13 @@ class MessageService : Service() {
       )
       val httpURLConnection = url.openConnection() as HttpURLConnection
       httpURLConnection.requestMethod = "GET"
-      val response = httpURLConnection.inputStream.bufferedReader().readText()
+
+      val response: String
+      httpURLConnection.inputStream.use { inputStream ->
+         inputStream.bufferedReader().use {
+            response = it.readText()
+         }
+      }
 
       httpURLConnection.disconnect()
       return receiveMapper.readValue(response)
@@ -393,4 +416,41 @@ class MessageService : Service() {
    private fun stopMessageReceiver() {
       receiveMessageHandler.removeCallbacks(messageReceiver)
    }
+
+   private fun MessageEntity.toMessage(): Message {
+      return if (this.text != null) Message(
+         from = this.from,
+         to = this.to,
+         data = Data(Text = Text(this.text)),
+         time = this.time
+      ) else Message(
+         from = this.from,
+         to = this.to,
+         data = Data(Image = Image(link = this.link!!)),
+         time = this.time
+      )
+   }
+
+   private fun Message.toEntity(): MessageEntity {
+      return if (this.data.Text != null) {
+         MessageEntity(
+            0,
+            this.from,
+            this.to,
+            this.data.Text.text,
+            null,
+            this.time
+         )
+      } else {
+         MessageEntity(
+            0,
+            this.from,
+            this.to,
+            null,
+            this.data.Image!!.link,
+            this.time
+         )
+      }
+   }
+
 }

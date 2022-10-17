@@ -16,6 +16,7 @@
         android:theme="@style/Theme.Messenger"
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -25,6 +26,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <activity
             android:name=".FullScreenImageActivity"
             android:label="@string/full_screen_image_activity_display_message">

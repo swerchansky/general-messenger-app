@@ -20,6 +20,7 @@ import swerchansky.Constants.SEND_MESSAGE
 import swerchansky.Constants.SEND_MESSAGE_FAILED
 import swerchansky.Constants.SERVER_ERROR
 import swerchansky.ToastUtil.sendToast
+import swerchansky.db.databases.MessageDatabase
 import swerchansky.messenger.databinding.ActivityMainBinding
 import swerchansky.recyclers.adapters.MessageAdapter
 import swerchansky.services.MessageService
@@ -37,10 +38,11 @@ class MainActivity : AppCompatActivity() {
    private val mainHandler = Handler(Looper.getMainLooper())
    private var messageService: MessageService? = null
    private var isBound = false
+   private val messagesDatabase by lazy { MessageDatabase.getDatabase(this).messagesDAO() }
 
    private val boundServiceConnection: ServiceConnection = object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName, service: IBinder) {
-         val binderBridge: MessageService.MyBinder = service as MessageService.MyBinder
+         val binderBridge = service as MessageService.MyBinder
          messageService = binderBridge.getService()
          recycler.adapter = MessageAdapter(this@MainActivity, messageService!!.messages)
          isBound = true
@@ -125,8 +127,8 @@ class MainActivity : AppCompatActivity() {
          .registerReceiver(messageReceiver, IntentFilter(MESSAGE_SERVICE_TAG))
    }
 
-   override fun onPause() {
-      super.onPause()
+   override fun onStop() {
+      super.onStop()
       LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver)
    }
 

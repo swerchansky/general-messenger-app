@@ -8,9 +8,9 @@
 
     <TextView
         android:id="@+id/mainName"
+        style="@style/MainName"
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        style="@style/MainName"
         android:gravity="center"
         android:text="@string/_1ch"
         android:typeface="sans"
@@ -28,16 +28,16 @@
         android:id="@+id/sendingPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
         android:background="@color/panel"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <ImageButton
             android:id="@+id/attachmentButton"
             android:layout_width="55dp"
             android:layout_height="55dp"
-            android:contentDescription="@string/attachments"
             android:background="@color/panel"
+            android:contentDescription="@string/attachments"
             android:src="@drawable/attachments_icon" />
 
         <EditText
@@ -47,16 +47,16 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:hint="@string/message"
-            android:textColorHint="@color/icons"
             android:importantForAutofill="no"
+            android:textColorHint="@color/icons"
             android:textIsSelectable="true" />
 
         <ImageButton
             android:id="@+id/sendButton"
             android:layout_width="55dp"
             android:layout_height="55dp"
-            android:contentDescription="@string/send"
             android:background="@drawable/send_button_background"
+            android:contentDescription="@string/send"
             android:src="@drawable/send_icon" />
 
     </LinearLayout>
@@ -67,12 +67,12 @@
         android:layout_height="45dp"
         android:layout_marginEnd="8dp"
         android:layout_marginBottom="8dp"
-        android:paddingTop="3dp"
-        android:contentDescription="@string/scroll_down"
         android:background="@drawable/send_button_background"
-        android:visibility="invisible"
+        android:contentDescription="@string/scroll_down"
+        android:paddingTop="3dp"
         android:src="@drawable/scroll_icon"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/sendingPanel"/>
+        android:visibility="invisible"
+        app:layout_constraintBottom_toTopOf="@id/sendingPanel"
+        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

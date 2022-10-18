@@ -10,21 +10,21 @@
     <TextView
         android:id="@+id/name"
         style="@style/SideInfo"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/name" />
 
     <TextView
         android:id="@+id/text"
         style="@style/Text"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/textExample" />
 
     <TextView
         android:id="@+id/time"
         style="@style/Time"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/timeExample" />
 

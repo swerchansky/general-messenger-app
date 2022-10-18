@@ -4,7 +4,9 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import swerchansky.messenger.databinding.ActivityFullScreenImageBinding
 import swerchansky.services.MessageService
@@ -15,6 +17,7 @@ class FullScreenImageActivity : AppCompatActivity() {
    private lateinit var messageServiceIntent: Intent
    private var messageService: MessageService? = null
    private var isBound = false
+   private val handler = Handler(Looper.getMainLooper())
 
    private val boundServiceConnection: ServiceConnection = object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -24,7 +27,9 @@ class FullScreenImageActivity : AppCompatActivity() {
          if (position != -1) {
             Thread {
                val image = messageService!!.getFullImage(position)
-               fullScreenImageBinding.fullScreenImage.setImageBitmap(image)
+               handler.post {
+                  fullScreenImageBinding.fullScreenImage.setImageBitmap(image)
+               }
             }.start()
          }
          isBound = true

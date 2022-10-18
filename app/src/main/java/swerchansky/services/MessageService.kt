@@ -6,24 +6,22 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.*
 import android.provider.MediaStore
-import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import swerchansky.Constants
 import swerchansky.Constants.ERROR
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_IMAGE
 import swerchansky.Constants.SEND_IMAGE_FAILED
 import swerchansky.Constants.SEND_MESSAGE
-import swerchansky.Constants.SEND_MESSAGE_FAILED
 import swerchansky.Constants.SERVER_ERROR
 import swerchansky.db.databases.MessageDatabase
 import swerchansky.db.entities.MessageEntity
@@ -31,11 +29,10 @@ import swerchansky.messenger.Data
 import swerchansky.messenger.Image
 import swerchansky.messenger.Message
 import swerchansky.messenger.Text
-import java.io.*
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLConnection
-import java.nio.charset.StandardCharsets
 import java.util.*
 import java.util.concurrent.Semaphore
 
@@ -46,7 +43,8 @@ class MessageService : Service() {
       const val MAIN_ACTIVITY_TAG = "MainActivity"
    }
 
-   private var messagesInterval = 1500L
+   private val network = NetworkHelper()
+   private val messagesInterval = 5000L
    private val semaphoreReceive = Semaphore(1, true)
    private val receiveMessageHandler = Handler(Looper.myLooper()!!)
    private val messagesDatabase by lazy { MessageDatabase.getDatabase(this).messagesDAO() }
@@ -89,7 +87,6 @@ class MessageService : Service() {
       loadMessages()
       LocalBroadcastManager.getInstance(this)
          .registerReceiver(sendMessageListener, IntentFilter(MAIN_ACTIVITY_TAG))
-      receiveMessageHandler.post(messageReceiver)
    }
 
    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -116,7 +113,7 @@ class MessageService : Service() {
       val message = messages[position]
       var image: Bitmap? = null
       val thread = Thread {
-         image = downloadFullImage(message.data.Image!!.link)
+         image = network.downloadFullImage(message.data.Image!!.link)
       }
       thread.start()
       synchronized(thread) {
@@ -135,17 +132,14 @@ class MessageService : Service() {
    }
 
    private fun updateMessages() {
-      val thread = Thread {
+      Thread {
          semaphoreReceive.acquire()
          val newMessages = try {
-            getMoreMessages((messages.size + 1).toLong())
+            receiveMapper.readValue<MutableList<Message>>(
+               network.getLastMessages((messages.size + 1).toLong())
+            )
          } catch (e: Exception) {
             mutableListOf()
-         }
-         messagesInterval = if (newMessages.isEmpty()) {
-            10000L
-         } else {
-            1500L
          }
          getImages(newMessages)
          val initialSize = messages.size
@@ -160,9 +154,7 @@ class MessageService : Service() {
          intent.putExtra("updatedSize", updatedSize)
          LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
          semaphoreReceive.release()
-      }
-
-      thread.start()
+      }.start()
    }
 
    private fun prepareAndSendImageMessage(uri: Uri) {
@@ -187,82 +179,17 @@ class MessageService : Service() {
       }
       Thread {
          try {
-            sendImageMessage(file, code)
+            val responseCode = network.sendImageMessage(file, code)
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+               sendIntent(SEND_IMAGE_FAILED, "Server error: http code $responseCode")
+            }
+            updateMessages()
          } catch (e: Exception) {
             sendIntent(SERVER_ERROR)
          } finally {
             file.delete()
          }
       }.start()
-   }
-
-   private fun sendImageMessage(file: File, code: String) {
-      val url = URL("http://213.189.221.170:8008/1ch")
-      val connection = url.openConnection() as HttpURLConnection
-      connection.apply {
-         requestMethod = "POST"
-         doInput = true
-         doOutput = true
-         connectTimeout = 2000
-      }
-
-      val boundary = "------$code------"
-      connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-
-      val crlf = "\r\n"
-      val json = "{\"from\":\"swerchansky\"}"
-      val outputStream = connection.outputStream
-      val outputStreamWriter = OutputStreamWriter(outputStream)
-      outputStream.use {
-         outputStreamWriter.use {
-            with(it) {
-               append("--").append(boundary).append(crlf)
-               append("Content-Disposition: form-data; name=\"json\"").append(crlf)
-               append("Content-Type: application/json; charset=utf-8").append(crlf)
-               append(crlf)
-               append(json).append(crlf)
-               flush()
-               appendFile(file, boundary, outputStream)
-               append(crlf)
-               append("--").append(boundary).append("--").append(crlf)
-            }
-         }
-      }
-      if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-         sendIntent(SEND_IMAGE_FAILED, "Server error")
-      }
-      connection.disconnect()
-      updateMessages()
-   }
-
-   private fun OutputStreamWriter.appendFile(
-      file: File,
-      boundary: String,
-      outputStream: OutputStream,
-      crlf: String = "\r\n"
-   ) {
-      val contentType = URLConnection.guessContentTypeFromName(file.name)
-      val fis = FileInputStream(file)
-      fis.use {
-         append("--").append(boundary).append(crlf)
-         append("Content-Disposition: form-data; name=\"file\"; filename=\"${file.name}\"")
-         append(crlf)
-         append("Content-Type: $contentType").append(crlf)
-         append("Content-Length: ${file.length()}").append(crlf)
-         append("Content-Transfer-Encoding: binary").append(crlf)
-         append(crlf)
-         flush()
-
-         val buffer = ByteArray(4096)
-
-         var n: Int
-         while (fis.read(buffer).also { n = it } != -1) {
-            outputStream.write(buffer, 0, n)
-         }
-         outputStream.flush()
-         append(crlf)
-         flush()
-      }
    }
 
    private fun getTempFile(image: Bitmap, code: String): File {
@@ -281,6 +208,7 @@ class MessageService : Service() {
    private fun getImageFromStorage(uri: Uri): Bitmap? {
       return try {
          if (Build.VERSION.SDK_INT < 28) {
+            @Suppress("DEPRECATION")
             MediaStore.Images.Media.getBitmap(
                this.contentResolver,
                uri
@@ -309,7 +237,11 @@ class MessageService : Service() {
          val json = sendMapper.writeValueAsString(message).replaceFirst("text", "Text")
          Thread {
             try {
-               sendTextMessage(json)
+               val responseCode = network.sendTextMessage(json)
+               if (responseCode != 200) {
+                  sendIntent(Constants.SEND_MESSAGE_FAILED, responseCode.toString())
+               }
+               updateMessages()
             } catch (e: Exception) {
                sendIntent(SERVER_ERROR)
             }
@@ -319,87 +251,12 @@ class MessageService : Service() {
       }
    }
 
-   private fun sendTextMessage(json: String) {
-      val url = URL("http://213.189.221.170:8008/1ch")
-      val connection = url.openConnection() as HttpURLConnection
-      val message = json.toByteArray(StandardCharsets.UTF_8)
-      val outLength = message.size
-      connection.apply {
-         requestMethod = "POST"
-         doInput = true
-         connectTimeout = 2000
-      }
-
-      connection.setFixedLengthStreamingMode(outLength)
-      connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-      connection.connect()
-      connection.outputStream.use { os -> os.write(message) }
-      Log.i(TAG, "send message response code: ${connection.responseCode}")
-      if (connection.responseCode != 200) {
-         sendIntent(SEND_MESSAGE_FAILED, connection.responseCode.toString())
-      }
-      connection.disconnect()
-      updateMessages()
-   }
-
    private fun getImages(messages: MutableList<Message>) {
       messages.forEach { message ->
          if (message.data.Image?.link?.isNotEmpty() == true) {
-            message.data.Image.bitmap = downloadThumbImage(message.data.Image.link)
+            message.data.Image.bitmap = network.downloadThumbImage(message.data.Image.link)
          }
       }
-   }
-
-   private fun downloadFullImage(link: String): Bitmap {
-      val url = URL("http://213.189.221.170:8008/img/$link")
-      return downloadImage(url)
-   }
-
-   private fun downloadThumbImage(link: String): Bitmap {
-      val url = URL("http://213.189.221.170:8008/thumb/$link")
-      return downloadImage(url)
-   }
-
-   private fun downloadImage(url: URL): Bitmap {
-      val photo = url.openStream().use {
-         BitmapFactory.decodeStream(it)
-      }
-      return photo
-   }
-
-   private fun getMoreMessages(from: Long, count: Long = 100): MutableList<Message> {
-      val url = messagesURLWithParams(
-         mapOf(
-            "limit" to count.toString(),
-            "lastKnownId" to from.toString()
-         )
-      )
-      val httpURLConnection = url.openConnection() as HttpURLConnection
-      httpURLConnection.requestMethod = "GET"
-
-      val response: String
-      httpURLConnection.inputStream.use { inputStream ->
-         inputStream.bufferedReader().use {
-            response = it.readText()
-         }
-      }
-
-      httpURLConnection.disconnect()
-      return receiveMapper.readValue(response)
-   }
-
-   private fun messagesURLWithParams(
-      parameters: Map<String, String> = emptyMap(),
-      path: String = "http://213.189.221.170:8008/1ch"
-   ): URL {
-      var fullPath = path
-      if (parameters.isNotEmpty()) {
-         fullPath += "?"
-         parameters.forEach { (key, value) ->
-            fullPath += "$key=$value&"
-         }
-      }
-      return URL(fullPath)
    }
 
    private fun sendIntent(type: Int, text: String = "") {

@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.recyclerview.widget.RecyclerView
+import swerchansky.Constants.USERNAME
 import swerchansky.messenger.FullScreenImageActivity
 import swerchansky.messenger.Message
 import swerchansky.messenger.R
@@ -94,13 +95,13 @@ class MessageAdapter(private val context: Context, private val messages: List<Me
 
    override fun getItemViewType(position: Int): Int {
       return if (messages[position].data.Image?.link?.isNotEmpty() == true) {
-         if (messages[position].from == "swerchansky") {
+         if (messages[position].from == USERNAME) {
             MY_PHOTO
          } else {
             PHOTO
          }
       } else {
-         if (messages[position].from == "swerchansky") {
+         if (messages[position].from == USERNAME) {
             MY_TEXT
          } else {
             TEXT

@@ -8,4 +8,6 @@ object Constants {
    const val SEND_IMAGE_FAILED = 502
    const val ERROR = 400
    const val SERVER_ERROR = 500
+   const val USERNAME = "swerchansky"
+   const val MESSAGES_UPDATE_INTERVAL = 4000L
 }

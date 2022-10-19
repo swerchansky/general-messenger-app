@@ -19,7 +19,9 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import swerchansky.Constants
 import swerchansky.Constants.ERROR
+import swerchansky.Constants.IMAGES_UPDATE_INTERVAL
 import swerchansky.Constants.MESSAGES_UPDATE_INTERVAL
+import swerchansky.Constants.NEW_IMAGE
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_IMAGE
 import swerchansky.Constants.SEND_IMAGE_FAILED
@@ -49,7 +51,7 @@ class MessageService : Service() {
 
    private val network = NetworkHelper()
    private val semaphoreReceive = Semaphore(1, true)
-   private val receiveMessageHandler = Handler(Looper.myLooper()!!)
+   private val messageHandler = Handler(Looper.myLooper()!!)
    private val messagesDatabase by lazy { MessageDatabase.getDatabase(this).messagesDAO() }
    private val receiveMapper = JsonMapper
       .builder()
@@ -67,7 +69,17 @@ class MessageService : Service() {
          try {
             updateMessages()
          } finally {
-            receiveMessageHandler.postDelayed(this, MESSAGES_UPDATE_INTERVAL)
+            messageHandler.postDelayed(this, MESSAGES_UPDATE_INTERVAL)
+         }
+      }
+   }
+
+   private var messageImageUpdater = object : Runnable {
+      override fun run() {
+         try {
+            updateImages()
+         } finally {
+            messageHandler.postDelayed(this, IMAGES_UPDATE_INTERVAL)
          }
       }
    }
@@ -104,7 +116,7 @@ class MessageService : Service() {
 
    override fun onDestroy() {
       super.onDestroy()
-      stopMessageReceiver()
+      stopCyclicTasks()
       LocalBroadcastManager.getInstance(this).unregisterReceiver(sendMessageListener)
    }
 
@@ -117,7 +129,7 @@ class MessageService : Service() {
          messagesDatabase.getAllMessages().forEach {
             messages += it.toMessage()
          }
-         startMessageReceiver()
+         startCyclicTasks()
       }.start()
    }
 
@@ -136,11 +148,7 @@ class MessageService : Service() {
             val imageId = Date().time
             messagesDatabase.insertMessage(it.toEntity(imageId))
             if (it.data.Image != null) {
-               try {
-                  it.data.Image.bitmap = compressImage(getImageFromCache(imageId))
-               } catch (e: Exception) {
-
-               } // TODO if file not found
+               it.data.Image.bitmap = compressImage(getImageFromCache(imageId))
             }
             messages += it
          }
@@ -154,14 +162,44 @@ class MessageService : Service() {
       }.start()
    }
 
-   private fun getImageFromCache(imageId: Long): Bitmap {
-      val file = File(cacheDir, "$imageId.png")
-      return BitmapFactory.decodeFile(file.absolutePath)
+   private fun getImageFromCache(imageId: Long?): Bitmap? {
+      return try {
+         val file = File(cacheDir, "$imageId.png")
+         if (file.exists()) {
+            BitmapFactory.decodeFile(file.absolutePath)
+         } else {
+            null
+         }
+      } catch (e: Exception) {
+         null
+      }
    }
 
-   private fun compressImage(image: Bitmap): Bitmap {
+   private fun compressImage(image: Bitmap?): Bitmap? {
+      image ?: return null
       val ratio = image.width.toDouble() / image.height.toDouble()
-      return Bitmap.createScaledBitmap(image, 300, (300 / ratio).roundToInt(), false)
+      return Bitmap.createScaledBitmap(image, 400, (400 / ratio).roundToInt(), false)
+   }
+
+   private fun updateImages() {
+      Thread {
+         messages.forEachIndexed { index, it ->
+            it.data.Image ?: return@forEachIndexed
+            if (it.data.Image.bitmap == null) {
+               try {
+                  val imageId = messagesDatabase.getMessageItemIdById(it.id!!)
+                  writeImageToCache(it, imageId)
+                  it.data.Image.bitmap = compressImage(getImageFromCache(imageId))
+                  val intent = Intent(TAG)
+                  intent.putExtra("type", NEW_IMAGE)
+                  intent.putExtra("position", index)
+                  LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+               } catch (e: Exception) {
+                  return@forEachIndexed
+               }
+            }
+         }
+      }.start()
    }
 
    private fun prepareAndSendImageMessage(uri: Uri) {
@@ -201,19 +239,12 @@ class MessageService : Service() {
 
    fun getFullImage(position: Int): Bitmap? {
       val message = messages[position]
-      var image: Bitmap? = null
-      val thread = Thread {
-         image = network.downloadFullImage(message.data.Image!!.link)
-      }
-      thread.start()
-      synchronized(thread) {
-         thread.join()
-      }
-      return image
+      val imageId = messagesDatabase.getMessageItemIdById(message.id!!)
+      return getImageFromCache(imageId)
    }
 
    private fun getTempFile(image: Bitmap, code: String): File {
-      val file = File(this.cacheDir, "$code.png")
+      val file = File(this.cacheDir, "${code}temp.png")
       file.createNewFile()
       val bos = ByteArrayOutputStream()
       image.compress(Bitmap.CompressFormat.PNG, 0, bos)
@@ -278,17 +309,20 @@ class MessageService : Service() {
       LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
    }
 
-   private fun startMessageReceiver() {
+   private fun startCyclicTasks() {
       messageReceiver.run()
+      messageImageUpdater.run()
    }
 
-   private fun stopMessageReceiver() {
-      receiveMessageHandler.removeCallbacks(messageReceiver)
+   private fun stopCyclicTasks() {
+      messageHandler.removeCallbacks(messageReceiver)
+      messageHandler.removeCallbacks(messageImageUpdater)
    }
 
    private fun MessageEntity.toMessage(): Message {
       return if (this.text != null) {
          Message(
+            id = this.id,
             from = this.from,
             to = this.to,
             data = Data(Text = Text(this.text)),
@@ -296,12 +330,15 @@ class MessageService : Service() {
          )
       } else {
          Message(
+            id = this.id,
             from = this.from,
             to = this.to,
             data = Data(
                Image = Image(
                   link = this.link!!,
-                  bitmap = compressImage(getImageFromCache(this.imageId!!))
+                  bitmap = compressImage(
+                     getImageFromCache(this.imageId)
+                  )
                )
             ),
             time = this.time
@@ -310,8 +347,8 @@ class MessageService : Service() {
    }
 
    private fun Message.toEntity(imageId: Long): MessageEntity {
-      return if (this.data.Text != null) {
-         MessageEntity(
+      if (this.data.Text != null) {
+         return MessageEntity(
             0,
             null,
             this.from,
@@ -322,37 +359,32 @@ class MessageService : Service() {
          )
       } else {
          try {
-            val image = network.downloadFullImage(this.data.Image!!.link)
-            val file =
-               File(this@MessageService.cacheDir, "$imageId.png").also { it.createNewFile() }
-            val bos = ByteArrayOutputStream()
-            image.compress(Bitmap.CompressFormat.PNG, 0, bos)
-            val bitmapData = bos.toByteArray()
-            FileOutputStream(file).use {
-               with(it) {
-                  write(bitmapData)
-                  flush()
-               }
-            }
-            MessageEntity(
-               0,
-               imageId,
-               this.from,
-               this.to,
-               null,
-               this.data.Image.link,
-               this.time
-            )
+            writeImageToCache(this, imageId)
          } catch (e: Exception) {
-            MessageEntity(
-               0,
-               null, // TODO if file not created
-               this.from,
-               this.to,
-               null,
-               this.data.Image!!.link,
-               this.time
-            )
+         }
+         return MessageEntity(
+            0,
+            null,
+            this.from,
+            this.to,
+            null,
+            this.data.Image!!.link,
+            this.time
+         )
+      }
+   }
+
+   private fun writeImageToCache(message: Message, imageId: Long) {
+      val image = network.downloadFullImage(message.data.Image!!.link)
+      val file =
+         File(this@MessageService.cacheDir, "$imageId.png").also { it.createNewFile() }
+      val bos = ByteArrayOutputStream()
+      image.compress(Bitmap.CompressFormat.PNG, 0, bos)
+      val bitmapData = bos.toByteArray()
+      FileOutputStream(file).use {
+         with(it) {
+            write(bitmapData)
+            flush()
          }
       }
    }

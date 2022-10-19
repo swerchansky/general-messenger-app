@@ -13,6 +13,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import swerchansky.Constants.ERROR
+import swerchansky.Constants.NEW_IMAGE
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_IMAGE
 import swerchansky.Constants.SEND_IMAGE_FAILED
@@ -58,6 +59,9 @@ class MainActivity : AppCompatActivity() {
             NEW_MESSAGES -> updateMessages(
                intent.getIntExtra("initialSize", 0),
                intent.getIntExtra("updatedSize", 0)
+            )
+            NEW_IMAGE -> updateMessageImage(
+               intent.getIntExtra("position", -1)
             )
             SEND_MESSAGE_FAILED -> sendToast(
                "server error with code: ${intent.getStringExtra("text")}",
@@ -117,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             mainActivity.scrollButton.visibility = View.INVISIBLE
          }
       }
-      deleteDatabase("messages") // TODO: remove
+//      deleteDatabase("messages") // TODO: remove
    }
 
    override fun onStart() {
@@ -196,5 +200,9 @@ class MainActivity : AppCompatActivity() {
             mainActivity.scrollButton.visibility = View.VISIBLE
          }
       }
+   }
+
+   private fun updateMessageImage(position: Int) {
+      recycler.adapter?.notifyItemChanged(position)
    }
 }

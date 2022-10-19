@@ -16,4 +16,7 @@ interface MessagesDAO {
 
    @Update
    fun updateMessage(message: MessageEntity)
+
+   @Query("select imageId from messages where id=:id")
+   fun getMessageItemIdById(id: Long): Long
 }

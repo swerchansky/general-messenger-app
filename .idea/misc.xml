@@ -4,6 +4,7 @@
     <option name="filePathToZoomLevelMap">
       <map>
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/attachments_icon.xml" value="0.24" />
+        <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/loading.xml" value="0.1515" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/message_background.xml" value="0.34" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/my_message_background.xml" value="0.1515" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/drawable/scroll_icon.xml" value="0.1515" />
@@ -14,6 +15,8 @@
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/activity_main.xml" value="0.21350861287398004" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/message.xml" value="0.33697916666666666" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/message_item.xml" value="0.20580235720761558" />
+        <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/my_photo_item.xml" value="0.26464300983326206" />
+        <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/my_text_item.xml" value="0.26464300983326206" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/photo_item.xml" value="0.20580235720761558" />
         <entry key="..\:/study/android-course/messenger/app/src/main/res/layout/text_item.xml" value="0.25" />
       </map>

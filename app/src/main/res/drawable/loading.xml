@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="400px"
+        android:height="400px">
+        <bitmap
+            android:src="@drawable/loading_bar"
+            android:tint="@color/text" />
+    </item>
+</layer-list>

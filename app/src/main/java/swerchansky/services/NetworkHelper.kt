@@ -2,6 +2,7 @@ package swerchansky.services
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import swerchansky.Constants.USERNAME
 import java.io.File
 import java.io.FileInputStream
 import java.io.OutputStream
@@ -53,11 +54,6 @@ class NetworkHelper {
       return downloadImage(url)
    }
 
-   fun downloadThumbImage(link: String): Bitmap {
-      val url = URL("http://213.189.221.170:8008/thumb/$link")
-      return downloadImage(url)
-   }
-
    private fun downloadImage(url: URL): Bitmap {
       val photo = url.openStream().use {
          BitmapFactory.decodeStream(it)
@@ -97,7 +93,7 @@ class NetworkHelper {
       connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
 
       val crlf = "\r\n"
-      val json = "{\"from\":\"swerchansky\"}"
+      val json = "{\"from\":\"$USERNAME\"}"
       val outputStream = connection.outputStream
       val outputStreamWriter = OutputStreamWriter(outputStream)
       outputStream.use {

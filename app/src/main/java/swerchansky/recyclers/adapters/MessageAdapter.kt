@@ -5,6 +5,7 @@ import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.graphics.drawable.toBitmap
 import androidx.recyclerview.widget.RecyclerView
 import swerchansky.Constants.USERNAME
 import swerchansky.messenger.FullScreenImageActivity
@@ -51,37 +52,48 @@ class MessageAdapter(private val context: Context, private val messages: List<Me
    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
       val message = messages[position]
       when (getItemViewType(position)) {
-          TEXT -> {
-             val textHolder = holder as TextViewHolder
-             setTextMessage(textHolder, message)
-          }
-          PHOTO -> {
-             val photoHolder = holder as PhotoViewHolder
-             setPhotoMessage(photoHolder, message, position)
-          }
-          MY_TEXT -> {
-             val textHolder = holder as TextViewHolder
-             setTextMessage(textHolder, message)
-             textHolder.message.background =
-                AppCompatResources.getDrawable(context, R.drawable.my_message_background)
-          }
-          MY_PHOTO -> {
-             val photoHolder = holder as PhotoViewHolder
-             setPhotoMessage(photoHolder, message, position)
-             photoHolder.message.background =
-                AppCompatResources.getDrawable(context, R.drawable.my_message_background)
-          }
+         TEXT -> {
+            val textHolder = holder as TextViewHolder
+            setTextMessage(textHolder, message)
+         }
+         PHOTO -> {
+            val photoHolder = holder as PhotoViewHolder
+            setPhotoMessage(photoHolder, message, position)
+         }
+         MY_TEXT -> {
+            val textHolder = holder as TextViewHolder
+            setTextMessage(textHolder, message)
+            textHolder.message.background =
+               AppCompatResources.getDrawable(context, R.drawable.my_message_background)
+         }
+         MY_PHOTO -> {
+            val photoHolder = holder as PhotoViewHolder
+            setPhotoMessage(photoHolder, message, position)
+            photoHolder.message.background =
+               AppCompatResources.getDrawable(context, R.drawable.my_message_background)
+         }
       }
    }
 
    private fun setPhotoMessage(photoHolder: PhotoViewHolder, message: Message, position: Int) {
-      photoHolder.photo.setImageBitmap(message.data.Image?.bitmap)
+      if (message.data.Image?.bitmap == null) {
+         photoHolder.photo.setImageBitmap(
+            AppCompatResources.getDrawable(
+               context,
+               R.drawable.loading
+            )?.toBitmap(400, 400)
+         )
+      } else {
+         photoHolder.photo.setImageBitmap(message.data.Image.bitmap)
+      }
       photoHolder.name.text = message.from
       photoHolder.time.text = dateFormat.format(Date(message.time.toLong()))
       photoHolder.photoMessage.setOnClickListener {
-         val intent = Intent(context, FullScreenImageActivity::class.java)
-         intent.putExtra("messagePosition", position)
-         context.startActivity(intent)
+         if (message.data.Image?.bitmap != null) {
+            val intent = Intent(context, FullScreenImageActivity::class.java)
+            intent.putExtra("messagePosition", position)
+            context.startActivity(intent)
+         }
       }
    }
 

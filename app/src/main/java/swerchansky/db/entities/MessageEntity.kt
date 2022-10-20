@@ -5,7 +5,7 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "messages")
 class MessageEntity (
-    @PrimaryKey(autoGenerate = true) val id: Long,
+    @PrimaryKey val id: Long,
     val imageId: Long? = null,
     val from: String,
     val to: String,

@@ -20,6 +20,10 @@
         android:id="@+id/messagesRecycler"
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:scrollbars="vertical"
+        android:scrollbarStyle="insideOverlay"
+        android:scrollbarSize="5dp"
+        android:scrollbarThumbVertical="@color/text"
         android:background="@color/messagesBackground"
         app:layout_constraintBottom_toTopOf="@id/sendingPanel"
         app:layout_constraintTop_toBottomOf="@id/mainName" />

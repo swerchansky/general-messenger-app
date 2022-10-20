@@ -5,6 +5,7 @@ object Constants {
    const val NEW_IMAGE = 2
    const val SEND_MESSAGE = 3
    const val SEND_IMAGE = 4
+   const val MESSAGES_LOADED = 5
    const val SEND_MESSAGE_FAILED = 501
    const val SEND_IMAGE_FAILED = 502
    const val ERROR = 400

@@ -13,6 +13,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import swerchansky.Constants.ERROR
+import swerchansky.Constants.MESSAGES_LOADED
 import swerchansky.Constants.NEW_IMAGE
 import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_IMAGE
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity() {
          val binderBridge = service as MessageService.MyBinder
          messageService = binderBridge.getService()
          recycler.adapter = MessageAdapter(this@MainActivity, messageService!!.messages)
+//         recycler.scrollToPosition(messageService!!.messages.size - 1)
          isBound = true
       }
 
@@ -63,6 +65,7 @@ class MainActivity : AppCompatActivity() {
             NEW_IMAGE -> updateMessageImage(
                intent.getIntExtra("position", -1)
             )
+            MESSAGES_LOADED -> recycler.scrollToPosition(messageService!!.messages.size - 1)
             SEND_MESSAGE_FAILED -> sendToast(
                "server error with code: ${intent.getStringExtra("text")}",
                this@MainActivity
@@ -152,6 +155,7 @@ class MainActivity : AppCompatActivity() {
       recycler = mainActivity.messagesRecycler
 
       val manager = LinearLayoutManager(this)
+      manager.isSmoothScrollbarEnabled = true
 
       recycler.apply {
          layoutManager = manager
@@ -162,10 +166,10 @@ class MainActivity : AppCompatActivity() {
          override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
             super.onScrolled(recyclerView, dx, dy)
             recycler.adapter?.let {
-               if (manager.findLastCompletelyVisibleItemPosition() == it.itemCount - 1) {
-                  mainActivity.scrollButton.visibility = View.INVISIBLE
-               } else {
+               if (dy < 0) {
                   mainActivity.scrollButton.visibility = View.VISIBLE
+               } else {
+                  mainActivity.scrollButton.visibility = View.INVISIBLE
                }
             }
          }
@@ -195,9 +199,9 @@ class MainActivity : AppCompatActivity() {
          val manager = recycler.layoutManager as LinearLayoutManager
          if (
             initialSize != updatedSize &&
-            manager.findLastCompletelyVisibleItemPosition() == initialSize - 1
+            manager.findLastVisibleItemPosition() == initialSize - 1
          ) {
-            mainActivity.scrollButton.visibility = View.VISIBLE
+            recycler.smoothScrollToPosition(updatedSize - 1)
          }
       }
    }

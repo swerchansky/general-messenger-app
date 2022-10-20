@@ -49,16 +49,19 @@ class NetworkHelper {
       return URL(fullPath)
    }
 
-   fun downloadFullImage(link: String): Bitmap {
+   fun downloadFullImage(link: String): Bitmap? {
       val url = URL("http://213.189.221.170:8008/img/$link")
       return downloadImage(url)
    }
 
-   private fun downloadImage(url: URL): Bitmap {
-      val photo = url.openStream().use {
-         BitmapFactory.decodeStream(it)
+   private fun downloadImage(url: URL): Bitmap? {
+      return try {
+         url.openStream().use {
+            BitmapFactory.decodeStream(it)
+         }
+      } catch (e: Exception) {
+         null
       }
-      return photo
    }
 
    fun sendTextMessage(json: String): Int {

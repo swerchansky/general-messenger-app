@@ -20,6 +20,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import swerchansky.Constants
 import swerchansky.Constants.ERROR
 import swerchansky.Constants.IMAGES_UPDATE_INTERVAL
+import swerchansky.Constants.MESSAGES_LOADED
 import swerchansky.Constants.MESSAGES_UPDATE_INTERVAL
 import swerchansky.Constants.NEW_IMAGE
 import swerchansky.Constants.NEW_MESSAGES
@@ -129,6 +130,7 @@ class MessageService : Service() {
          messagesDatabase.getAllMessages().forEach {
             messages += it.toMessage()
          }
+         sendIntent(MESSAGES_LOADED)
          startCyclicTasks()
       }.start()
    }
@@ -152,12 +154,14 @@ class MessageService : Service() {
             }
             messages += it
          }
-         val updatedSize = messages.size
-         val intent = Intent(TAG)
-         intent.putExtra("type", NEW_MESSAGES)
-         intent.putExtra("initialSize", initialSize)
-         intent.putExtra("updatedSize", updatedSize)
-         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+         if (newMessages.isNotEmpty()) {
+            val updatedSize = messages.size
+            val intent = Intent(TAG)
+            intent.putExtra("type", NEW_MESSAGES)
+            intent.putExtra("initialSize", initialSize)
+            intent.putExtra("updatedSize", updatedSize)
+            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+         }
          semaphoreReceive.release()
       }.start()
    }
@@ -349,7 +353,7 @@ class MessageService : Service() {
    private fun Message.toEntity(imageId: Long): MessageEntity {
       if (this.data.Text != null) {
          return MessageEntity(
-            0,
+            this.id!!,
             null,
             this.from,
             this.to,
@@ -358,24 +362,27 @@ class MessageService : Service() {
             this.time
          )
       } else {
-         try {
-            writeImageToCache(this, imageId)
-         } catch (e: Exception) {
-         }
-         return MessageEntity(
-            0,
-            null,
+         val entity = MessageEntity(
+            this.id!!,
+            imageId,
             this.from,
             this.to,
             null,
             this.data.Image!!.link,
             this.time
          )
+         return try {
+            writeImageToCache(this, imageId)
+            entity
+         } catch (e: Exception) {
+            entity
+         }
       }
    }
 
    private fun writeImageToCache(message: Message, imageId: Long) {
       val image = network.downloadFullImage(message.data.Image!!.link)
+      image ?: return
       val file =
          File(this@MessageService.cacheDir, "$imageId.png").also { it.createNewFile() }
       val bos = ByteArrayOutputStream()
@@ -388,5 +395,4 @@ class MessageService : Service() {
          }
       }
    }
-
 }

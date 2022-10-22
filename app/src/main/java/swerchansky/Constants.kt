@@ -12,5 +12,6 @@ object Constants {
    const val SERVER_ERROR = 500
    const val USERNAME = "swerchansky"
    const val MESSAGES_UPDATE_INTERVAL = 4000L
-   const val IMAGES_UPDATE_INTERVAL = 25000L
+   const val IMAGES_UPDATE_INTERVAL = 20000L
+   const val FAILED_MESSAGES_SEND_INTERVAL = 4000L
 }

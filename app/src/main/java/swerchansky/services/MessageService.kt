@@ -19,6 +19,7 @@ import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
 import swerchansky.Constants
 import swerchansky.Constants.ERROR
+import swerchansky.Constants.FAILED_MESSAGES_SEND_INTERVAL
 import swerchansky.Constants.IMAGES_UPDATE_INTERVAL
 import swerchansky.Constants.MESSAGES_LOADED
 import swerchansky.Constants.MESSAGES_UPDATE_INTERVAL
@@ -27,9 +28,10 @@ import swerchansky.Constants.NEW_MESSAGES
 import swerchansky.Constants.SEND_IMAGE
 import swerchansky.Constants.SEND_IMAGE_FAILED
 import swerchansky.Constants.SEND_MESSAGE
-import swerchansky.Constants.SERVER_ERROR
 import swerchansky.Constants.USERNAME
-import swerchansky.db.databases.MessageDatabase
+import swerchansky.db.databases.FailedMessagesDatabase
+import swerchansky.db.databases.MessagesDatabase
+import swerchansky.db.entities.FailedMessagesEntity
 import swerchansky.db.entities.MessageEntity
 import swerchansky.messenger.Data
 import swerchansky.messenger.Image
@@ -53,7 +55,12 @@ class MessageService : Service() {
    private val network = NetworkHelper()
    private val semaphoreReceive = Semaphore(1, true)
    private val messageHandler = Handler(Looper.myLooper()!!)
-   private val messagesDatabase by lazy { MessageDatabase.getDatabase(this).messagesDAO() }
+   private val messagesDatabase by lazy {
+      MessagesDatabase.getDatabase(this).messagesDAO()
+   }
+   private val failedMessagesDatabase by lazy {
+      FailedMessagesDatabase.getDatabase(this).failedMessagesDAO()
+   }
    private val receiveMapper = JsonMapper
       .builder()
       .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true)
@@ -64,6 +71,8 @@ class MessageService : Service() {
       .serializationInclusion(JsonInclude.Include.NON_NULL)
       .build()
       .registerModule(KotlinModule.Builder().build())
+
+   val messages: MutableList<Message> = mutableListOf()
 
    private var messageReceiver = object : Runnable {
       override fun run() {
@@ -85,6 +94,16 @@ class MessageService : Service() {
       }
    }
 
+   private var failedMessagesSender = object : Runnable {
+      override fun run() {
+         try {
+            sendFailedMessages()
+         } finally {
+            messageHandler.postDelayed(this, FAILED_MESSAGES_SEND_INTERVAL)
+         }
+      }
+   }
+
    private val sendMessageListener: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
@@ -95,8 +114,6 @@ class MessageService : Service() {
          }
       }
    }
-
-   val messages: MutableList<Message> = mutableListOf()
 
    override fun onCreate() {
       super.onCreate()
@@ -234,7 +251,15 @@ class MessageService : Service() {
             }
             updateMessages()
          } catch (e: Exception) {
-            sendIntent(SERVER_ERROR)
+            failedMessagesDatabase.insertFailedMessage(
+               FailedMessagesEntity(
+                  messages.lastIndex.toLong(),
+                  USERNAME,
+                  "1@ch",
+                  null,
+                  uri.toString()
+               )
+            )
          } finally {
             file.delete()
          }
@@ -298,12 +323,26 @@ class MessageService : Service() {
                }
                updateMessages()
             } catch (e: Exception) {
-               sendIntent(SERVER_ERROR)
+               failedMessagesDatabase.insertFailedMessage(message.toFailedEntity(null, messages.lastIndex.toLong()))
             }
          }.start()
       } else {
          sendIntent(ERROR, "Message can't be empty")
       }
+   }
+
+   private fun sendFailedMessages() {
+      Thread {
+         val failedMessages = failedMessagesDatabase.getAllFailedMessages()
+         failedMessages.forEach {
+            if (it.imagePath != null) {
+               prepareAndSendImageMessage(Uri.parse(it.imagePath))
+            } else {
+               prepareAndSendTextMessage(it.text!!, it.from, it.to)
+            }
+            failedMessagesDatabase.deleteFailedMessage(it)
+         }
+      }.start()
    }
 
    private fun sendIntent(type: Int, text: String = "") {
@@ -316,11 +355,39 @@ class MessageService : Service() {
    private fun startCyclicTasks() {
       messageReceiver.run()
       messageImageUpdater.run()
+      failedMessagesSender.run()
    }
 
    private fun stopCyclicTasks() {
       messageHandler.removeCallbacks(messageReceiver)
       messageHandler.removeCallbacks(messageImageUpdater)
+      messageHandler.removeCallbacks(failedMessagesSender)
+   }
+
+   private fun writeImageToCache(message: Message, imageId: Long) {
+      val image = network.downloadFullImage(message.data.Image!!.link)
+      image ?: return
+      val file =
+         File(this@MessageService.cacheDir, "$imageId.png").also { it.createNewFile() }
+      val bos = ByteArrayOutputStream()
+      image.compress(Bitmap.CompressFormat.PNG, 0, bos)
+      val bitmapData = bos.toByteArray()
+      FileOutputStream(file).use {
+         with(it) {
+            write(bitmapData)
+            flush()
+         }
+      }
+   }
+
+   private fun Message.toFailedEntity(path: String?, position: Long): FailedMessagesEntity {
+      return FailedMessagesEntity(
+         position,
+         this.from,
+         this.to,
+         this.data.Text?.text,
+         path
+      )
    }
 
    private fun MessageEntity.toMessage(): Message {
@@ -376,22 +443,6 @@ class MessageService : Service() {
             entity
          } catch (e: Exception) {
             entity
-         }
-      }
-   }
-
-   private fun writeImageToCache(message: Message, imageId: Long) {
-      val image = network.downloadFullImage(message.data.Image!!.link)
-      image ?: return
-      val file =
-         File(this@MessageService.cacheDir, "$imageId.png").also { it.createNewFile() }
-      val bos = ByteArrayOutputStream()
-      image.compress(Bitmap.CompressFormat.PNG, 0, bos)
-      val bitmapData = bos.toByteArray()
-      FileOutputStream(file).use {
-         with(it) {
-            write(bitmapData)
-            flush()
          }
       }
    }

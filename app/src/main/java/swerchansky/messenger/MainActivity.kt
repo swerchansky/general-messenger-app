@@ -39,13 +39,14 @@ class MainActivity : AppCompatActivity() {
    private val mainHandler = Handler(Looper.getMainLooper())
    private var messageService: MessageService? = null
    private var isBound = false
+   private var lastPosition: Int = 0
 
    private val boundServiceConnection: ServiceConnection = object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName, service: IBinder) {
          val binderBridge = service as MessageService.MyBinder
          messageService = binderBridge.getService()
          recycler.adapter = MessageAdapter(this@MainActivity, messageService!!.messages)
-//         recycler.scrollToPosition(messageService!!.messages.size - 1)
+          recycler.scrollToPosition(lastPosition)
          isBound = true
       }
 
@@ -54,6 +55,8 @@ class MainActivity : AppCompatActivity() {
          messageService = null
       }
    }
+
+   // TODO: rotate screen
 
    private val messageReceiver: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
@@ -65,7 +68,9 @@ class MainActivity : AppCompatActivity() {
             NEW_IMAGE -> updateMessageImage(
                intent.getIntExtra("position", -1)
             )
-            MESSAGES_LOADED -> recycler.scrollToPosition(messageService!!.messages.size - 1)
+            MESSAGES_LOADED -> messageService?.let {
+               recycler.scrollToPosition(it.messages.size - 1)
+            }
             SEND_MESSAGE_FAILED -> sendToast(
                "server error with code: ${intent.getStringExtra("text")}",
                this@MainActivity
@@ -104,6 +109,9 @@ class MainActivity : AppCompatActivity() {
       super.onCreate(savedInstanceState)
       mainActivity = ActivityMainBinding.inflate(layoutInflater)
       setContentView(mainActivity.root)
+      if (savedInstanceState != null) {
+         lastPosition = savedInstanceState.getInt("lastPosition")
+      }
 
       initRecycler()
       initSendListener()
@@ -136,6 +144,14 @@ class MainActivity : AppCompatActivity() {
    override fun onStop() {
       super.onStop()
       LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver)
+   }
+
+   override fun onSaveInstanceState(outState: Bundle) {
+      super.onSaveInstanceState(outState)
+      outState.putInt(
+         "lastPosition",
+         (recycler.layoutManager as LinearLayoutManager).findFirstVisibleItemPosition()
+      )
    }
 
    override fun onDestroy() {

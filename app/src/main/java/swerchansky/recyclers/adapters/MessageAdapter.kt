@@ -106,7 +106,11 @@ class MessageAdapter(private val context: Context, private val messages: List<Me
          MY_TEXT -> {
             val textHolder = holder as MyTextViewHolder
             textHolder.text.text = message.data.Text?.text ?: ""
-            textHolder.time.text = dateFormat.format(Date(message.time.toLong()))
+            if (message.time.isEmpty()) {
+               textHolder.time.text = "....."
+            } else {
+               textHolder.time.text = dateFormat.format(Date(message.time.toLong()))
+            }
          }
          MY_PHOTO -> {
             val photoHolder = holder as MyPhotoViewHolder
@@ -120,7 +124,11 @@ class MessageAdapter(private val context: Context, private val messages: List<Me
             } else {
                photoHolder.photo.setImageBitmap(message.data.Image.bitmap)
             }
-            photoHolder.time.text = dateFormat.format(Date(message.time.toLong()))
+            if (message.time.isEmpty()) {
+               photoHolder.time.text = "....."
+            } else {
+               photoHolder.time.text = dateFormat.format(Date(message.time.toLong()))
+            }
             photoHolder.photoMessage.setOnClickListener {
                if (message.data.Image?.bitmap != null) {
                   val intent = Intent(context, FullScreenImageActivity::class.java)

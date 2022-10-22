@@ -9,15 +9,15 @@ import swerchansky.db.entities.MessageEntity
 
 @Database(entities = [MessageEntity::class], version = 1)
 
-abstract class MessageDatabase : RoomDatabase() {
+abstract class MessagesDatabase : RoomDatabase() {
    abstract fun messagesDAO(): MessagesDAO
 
    companion object {
 
       @Volatile
-      private var INSTANCE: MessageDatabase? = null
+      private var INSTANCE: MessagesDatabase? = null
 
-      fun getDatabase(context: Context): MessageDatabase {
+      fun getDatabase(context: Context): MessagesDatabase {
          if (INSTANCE == null) {
             synchronized(this) {
                INSTANCE = buildDatabase(context)
@@ -26,10 +26,10 @@ abstract class MessageDatabase : RoomDatabase() {
          return INSTANCE!!
       }
 
-      private fun buildDatabase(context: Context): MessageDatabase {
+      private fun buildDatabase(context: Context): MessagesDatabase {
          return Room.databaseBuilder(
             context.applicationContext,
-            MessageDatabase::class.java,
+            MessagesDatabase::class.java,
             "messages"
          ).build()
       }

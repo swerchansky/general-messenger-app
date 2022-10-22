@@ -253,7 +253,7 @@ class MessageService : Service() {
          } catch (e: Exception) {
             failedMessagesDatabase.insertFailedMessage(
                FailedMessagesEntity(
-                  messages.lastIndex.toLong(),
+                  0,
                   USERNAME,
                   "1@ch",
                   null,
@@ -323,7 +323,7 @@ class MessageService : Service() {
                }
                updateMessages()
             } catch (e: Exception) {
-               failedMessagesDatabase.insertFailedMessage(message.toFailedEntity(null, messages.lastIndex.toLong()))
+               failedMessagesDatabase.insertFailedMessage(message.toFailedEntity(null))
             }
          }.start()
       } else {
@@ -380,9 +380,9 @@ class MessageService : Service() {
       }
    }
 
-   private fun Message.toFailedEntity(path: String?, position: Long): FailedMessagesEntity {
+   private fun Message.toFailedEntity(path: String?): FailedMessagesEntity {
       return FailedMessagesEntity(
-         position,
+         0,
          this.from,
          this.to,
          this.data.Text?.text,

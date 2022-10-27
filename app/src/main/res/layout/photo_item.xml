@@ -18,12 +18,12 @@
         android:id="@+id/photo"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:src="@mipmap/telefram"
-        android:paddingTop="6dp"
+        android:contentDescription="@string/photo"
         android:paddingStart="6dp"
+        android:paddingTop="6dp"
         android:paddingEnd="6dp"
         android:paddingBottom="2dp"
-        android:contentDescription="@string/photo" />
+        android:src="@mipmap/telefram" />
 
     <TextView
         android:id="@+id/time"

@@ -22,8 +22,6 @@ class NetworkHelper {
          )
       )
       val httpURLConnection = url.openConnection() as HttpURLConnection
-//      httpURLConnection.requestMethod = "GET"
-
       val response: String
       httpURLConnection.inputStream.use { inputStream ->
          inputStream.bufferedReader().use {

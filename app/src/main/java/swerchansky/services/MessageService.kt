@@ -9,7 +9,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.*
+import android.os.Binder
+import android.os.Build
+import android.os.IBinder
 import android.provider.MediaStore
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.fasterxml.jackson.annotation.JsonInclude
@@ -17,6 +19,7 @@ import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.*
 import swerchansky.Constants
 import swerchansky.Constants.ERROR
 import swerchansky.Constants.FAILED_MESSAGES_SEND_INTERVAL
@@ -42,7 +45,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.util.*
-import java.util.concurrent.Semaphore
 import kotlin.math.roundToInt
 
 
@@ -53,8 +55,7 @@ class MessageService : Service() {
    }
 
    private val network = NetworkHelper()
-   private val semaphoreReceive = Semaphore(1, true)
-   private val messageHandler = Handler(Looper.myLooper()!!)
+   private val scope = CoroutineScope(Dispatchers.IO)
    private val messagesDatabase by lazy {
       MessagesDatabase.getDatabase(this).messagesDAO()
    }
@@ -74,43 +75,40 @@ class MessageService : Service() {
 
    val messages: MutableList<Message> = mutableListOf()
 
-   private var messageReceiver = object : Runnable {
-      override fun run() {
-         try {
-            updateMessages()
-         } finally {
-            messageHandler.postDelayed(this, MESSAGES_UPDATE_INTERVAL)
-         }
+   private var messageReceiverJob = scope.launch(start = CoroutineStart.LAZY) {
+      while (isActive) {
+         updateMessages()
+         delay(MESSAGES_UPDATE_INTERVAL)
       }
    }
 
-   private var messageImageUpdater = object : Runnable {
-      override fun run() {
-         try {
-            updateImages()
-         } finally {
-            messageHandler.postDelayed(this, IMAGES_UPDATE_INTERVAL)
-         }
+   private var messageImageUpdaterJob = scope.launch(start = CoroutineStart.LAZY) {
+      while (isActive) {
+         updateImages()
+         delay(IMAGES_UPDATE_INTERVAL)
       }
    }
 
-   private var failedMessagesSender = object : Runnable {
-      override fun run() {
-         try {
-            sendFailedMessages()
-         } finally {
-            messageHandler.postDelayed(this, FAILED_MESSAGES_SEND_INTERVAL)
-         }
+   private var failedMessagesSenderJob = scope.launch(start = CoroutineStart.LAZY) {
+      while (isActive) {
+         sendFailedMessages()
+         delay(FAILED_MESSAGES_SEND_INTERVAL)
       }
    }
 
    private val sendMessageListener: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
          when (intent.getIntExtra("type", -1)) {
-            SEND_MESSAGE -> prepareAndSendTextMessage(intent.getStringExtra("text") ?: "")
-            SEND_IMAGE -> prepareAndSendImageMessage(
-               Uri.parse(intent.getStringExtra("uri")) ?: Uri.EMPTY
-            )
+            SEND_MESSAGE -> scope.launch {
+               prepareAndSendTextMessage(
+                  intent.getStringExtra("text") ?: ""
+               )
+            }
+            SEND_IMAGE -> scope.launch {
+               prepareAndSendImageMessage(
+                  Uri.parse(intent.getStringExtra("uri")) ?: Uri.EMPTY
+               )
+            }
          }
       }
    }
@@ -135,6 +133,7 @@ class MessageService : Service() {
    override fun onDestroy() {
       super.onDestroy()
       stopCyclicTasks()
+      scope.cancel()
       LocalBroadcastManager.getInstance(this).unregisterReceiver(sendMessageListener)
    }
 
@@ -143,18 +142,19 @@ class MessageService : Service() {
    }
 
    private fun loadMessages() {
-      Thread {
-         messagesDatabase.getAllMessages().forEach {
-            messages += it.toMessage()
+      scope.launch {
+         withContext(Dispatchers.IO) {
+            messagesDatabase.getAllMessages().forEach {
+               messages += it.toMessage()
+            }
+            sendIntent(MESSAGES_LOADED)
+            startCyclicTasks()
          }
-         sendIntent(MESSAGES_LOADED)
-         startCyclicTasks()
-      }.start()
+      }
    }
 
-   private fun updateMessages() {
-      Thread {
-         semaphoreReceive.acquire()
+   private suspend fun updateMessages() {
+      withContext(Dispatchers.IO) {
          val newMessages = try {
             receiveMapper.readValue<MutableList<Message>>(
                network.getLastMessages((messages.size + 1).toLong())
@@ -165,11 +165,14 @@ class MessageService : Service() {
          val initialSize = messages.size
          newMessages.forEach {
             val imageId = Date().time
-            messagesDatabase.insertMessage(it.toEntity(imageId))
-            if (it.data.Image != null) {
-               it.data.Image.bitmap = compressImage(getImageFromCache(imageId))
+            try {
+               messagesDatabase.insertMessage(it.toEntity(imageId))
+               if (it.data.Image != null) {
+                  it.data.Image.bitmap = compressImage(getImageFromCache(imageId))
+               }
+               messages += it
+            } catch (e: Exception) {
             }
-            messages += it
          }
          if (newMessages.isNotEmpty()) {
             val updatedSize = messages.size
@@ -177,10 +180,9 @@ class MessageService : Service() {
             intent.putExtra("type", NEW_MESSAGES)
             intent.putExtra("initialSize", initialSize)
             intent.putExtra("updatedSize", updatedSize)
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+            LocalBroadcastManager.getInstance(this@MessageService).sendBroadcast(intent)
          }
-         semaphoreReceive.release()
-      }.start()
+      }
    }
 
    private fun getImageFromCache(imageId: Long?): Bitmap? {
@@ -202,8 +204,8 @@ class MessageService : Service() {
       return Bitmap.createScaledBitmap(image, 400, (400 / ratio).roundToInt(), false)
    }
 
-   private fun updateImages() {
-      Thread {
+   private suspend fun updateImages() {
+      withContext(Dispatchers.IO) {
          messages.forEachIndexed { index, it ->
             it.data.Image ?: return@forEachIndexed
             if (it.data.Image.bitmap == null) {
@@ -214,16 +216,16 @@ class MessageService : Service() {
                   val intent = Intent(TAG)
                   intent.putExtra("type", NEW_IMAGE)
                   intent.putExtra("position", index)
-                  LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+                  LocalBroadcastManager.getInstance(this@MessageService).sendBroadcast(intent)
                } catch (e: Exception) {
                   return@forEachIndexed
                }
             }
          }
-      }.start()
+      }
    }
 
-   private fun prepareAndSendImageMessage(uri: Uri) {
+   private suspend fun prepareAndSendImageMessage(uri: Uri) {
       if (uri == Uri.EMPTY) {
          sendIntent(SEND_IMAGE_FAILED, "Uri is empty")
          return
@@ -243,13 +245,15 @@ class MessageService : Service() {
          sendIntent(SEND_IMAGE_FAILED, "Can't create temp file")
          return
       }
-      Thread {
+      withContext(Dispatchers.IO) {
          try {
             val responseCode = network.sendImageMessage(file, code)
             if (responseCode != HttpURLConnection.HTTP_OK) {
                sendIntent(SEND_IMAGE_FAILED, "Server error: http code $responseCode")
             }
-            updateMessages()
+            scope.launch {
+               updateMessages()
+            }
          } catch (e: Exception) {
             failedMessagesDatabase.insertFailedMessage(
                FailedMessagesEntity(
@@ -263,7 +267,7 @@ class MessageService : Service() {
          } finally {
             file.delete()
          }
-      }.start()
+      }
    }
 
    fun getFullImage(position: Int): Bitmap? {
@@ -302,7 +306,7 @@ class MessageService : Service() {
       }
    }
 
-   private fun prepareAndSendTextMessage(
+   private suspend fun prepareAndSendTextMessage(
       text: String,
       from: String = USERNAME,
       to: String = "1@ch"
@@ -314,25 +318,30 @@ class MessageService : Service() {
             Data(Text = Text(text)),
             Date().time.toString()
          )
-         val json = sendMapper.writeValueAsString(message).replaceFirst("text", "Text")
-         Thread {
-            try {
-               val responseCode = network.sendTextMessage(json)
-               if (responseCode != 200) {
-                  sendIntent(Constants.SEND_MESSAGE_FAILED, responseCode.toString())
+         kotlin.runCatching {
+            sendMapper.writeValueAsString(message).replaceFirst("text", "Text")
+         }.onSuccess { json ->
+            withContext(Dispatchers.IO) {
+               try {
+                  val responseCode = network.sendTextMessage(json)
+                  if (responseCode != 200) {
+                     sendIntent(Constants.SEND_MESSAGE_FAILED, responseCode.toString())
+                  }
+                  scope.launch {
+                     updateMessages()
+                  }
+               } catch (e: Exception) {
+                  failedMessagesDatabase.insertFailedMessage(message.toFailedEntity(null))
                }
-               updateMessages()
-            } catch (e: Exception) {
-               failedMessagesDatabase.insertFailedMessage(message.toFailedEntity(null))
             }
-         }.start()
+         } // TODO handle error
       } else {
          sendIntent(ERROR, "Message can't be empty")
       }
    }
 
-   private fun sendFailedMessages() {
-      Thread {
+   private suspend fun sendFailedMessages() {
+      withContext(Dispatchers.IO) {
          val failedMessages = failedMessagesDatabase.getAllFailedMessages()
          failedMessages.forEach {
             if (it.imagePath != null) {
@@ -342,7 +351,7 @@ class MessageService : Service() {
             }
             failedMessagesDatabase.deleteFailedMessage(it)
          }
-      }.start()
+      }
    }
 
    private fun sendIntent(type: Int, text: String = "") {
@@ -353,15 +362,15 @@ class MessageService : Service() {
    }
 
    private fun startCyclicTasks() {
-      messageReceiver.run()
-      messageImageUpdater.run()
-      failedMessagesSender.run()
+      messageReceiverJob.start()
+      messageImageUpdaterJob.start()
+      failedMessagesSenderJob.start()
    }
 
    private fun stopCyclicTasks() {
-      messageHandler.removeCallbacks(messageReceiver)
-      messageHandler.removeCallbacks(messageImageUpdater)
-      messageHandler.removeCallbacks(failedMessagesSender)
+      messageReceiverJob.cancel()
+      messageImageUpdaterJob.cancel()
+      failedMessagesSenderJob.cancel()
    }
 
    private fun writeImageToCache(message: Message, imageId: Long) {

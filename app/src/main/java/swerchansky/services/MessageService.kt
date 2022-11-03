@@ -15,10 +15,8 @@ import android.os.IBinder
 import android.provider.MediaStore
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.databind.MapperFeature
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.*
 import swerchansky.Constants
 import swerchansky.Constants.ERROR
@@ -40,6 +38,7 @@ import swerchansky.messenger.Data
 import swerchansky.messenger.Image
 import swerchansky.messenger.Message
 import swerchansky.messenger.Text
+import swerchansky.network.NetworkHelper
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -62,11 +61,6 @@ class MessageService : Service() {
    private val failedMessagesDatabase by lazy {
       FailedMessagesDatabase.getDatabase(this).failedMessagesDAO()
    }
-   private val receiveMapper = JsonMapper
-      .builder()
-      .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true)
-      .build()
-      .registerModule(KotlinModule.Builder().build())
    private val sendMapper = JsonMapper
       .builder()
       .serializationInclusion(JsonInclude.Include.NON_NULL)
@@ -156,9 +150,7 @@ class MessageService : Service() {
    private suspend fun updateMessages() {
       withContext(Dispatchers.IO) {
          val newMessages = try {
-            receiveMapper.readValue<MutableList<Message>>(
-               network.getLastMessages((messages.size + 1).toLong())
-            )
+            network.getLastMessages(messages.last().id!!) ?: mutableListOf()
          } catch (e: Exception) {
             mutableListOf()
          }
@@ -212,7 +204,7 @@ class MessageService : Service() {
                try {
                   val imageId = messagesDatabase.getMessageItemIdById(it.id!!)
                   writeImageToCache(it, imageId)
-                  it.data.Image.bitmap = compressImage(getImageFromCache(imageId))
+                  messages[index].data.Image!!.bitmap = compressImage(getImageFromCache(imageId))
                   val intent = Intent(TAG)
                   intent.putExtra("type", NEW_IMAGE)
                   intent.putExtra("position", index)
@@ -259,7 +251,7 @@ class MessageService : Service() {
                FailedMessagesEntity(
                   0,
                   USERNAME,
-                  "1@ch",
+                  "1@channel",
                   null,
                   uri.toString()
                )
@@ -309,7 +301,7 @@ class MessageService : Service() {
    private suspend fun prepareAndSendTextMessage(
       text: String,
       from: String = USERNAME,
-      to: String = "1@ch"
+      to: String = "1@channel"
    ) {
       if (text.isNotEmpty()) {
          val message = Message(
@@ -323,6 +315,7 @@ class MessageService : Service() {
          }.onSuccess { json ->
             withContext(Dispatchers.IO) {
                try {
+                  println(json)
                   val responseCode = network.sendTextMessage(json)
                   if (responseCode != 200) {
                      sendIntent(Constants.SEND_MESSAGE_FAILED, responseCode.toString())

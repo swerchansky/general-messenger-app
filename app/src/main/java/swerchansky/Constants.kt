@@ -11,7 +11,8 @@ object Constants {
    const val ERROR = 400
    const val SERVER_ERROR = 500
    const val USERNAME = "swerchansky"
-   const val MESSAGES_UPDATE_INTERVAL = 4000L
+   const val URL = "http://213.189.221.170:8008/"
+   const val MESSAGES_UPDATE_INTERVAL = 2000L
    const val IMAGES_UPDATE_INTERVAL = 20000L
    const val FAILED_MESSAGES_SEND_INTERVAL = 4000L
 }

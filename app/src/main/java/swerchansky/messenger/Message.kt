@@ -1,6 +1,7 @@
 package swerchansky.messenger
 
 import android.graphics.Bitmap
+import com.fasterxml.jackson.annotation.JsonProperty
 
 data class Message(
    val from: String,
@@ -11,7 +12,9 @@ data class Message(
 )
 
 data class Data(
+   @JsonProperty("Image")
    val Image: Image? = null,
+   @JsonProperty("Text")
    val Text: Text? = null,
 )
 

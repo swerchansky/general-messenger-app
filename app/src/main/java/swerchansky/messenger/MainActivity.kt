@@ -2,9 +2,7 @@ package swerchansky.messenger
 
 import android.content.*
 import android.os.Bundle
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.view.View
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,7 +34,6 @@ class MainActivity : AppCompatActivity() {
    private lateinit var mainActivity: ActivityMainBinding
    private lateinit var recycler: RecyclerView
    private lateinit var messageServiceIntent: Intent
-   private val mainHandler = Handler(Looper.getMainLooper())
    private var messageService: MessageService? = null
    private var isBound = false
    private var lastPosition: Int = 0
@@ -46,7 +43,7 @@ class MainActivity : AppCompatActivity() {
          val binderBridge = service as MessageService.MyBinder
          messageService = binderBridge.getService()
          recycler.adapter = MessageAdapter(this@MainActivity, messageService!!.messages)
-          recycler.scrollToPosition(lastPosition)
+         recycler.scrollToPosition(lastPosition)
          isBound = true
       }
 
@@ -55,8 +52,6 @@ class MainActivity : AppCompatActivity() {
          messageService = null
       }
    }
-
-   // TODO: rotate screen
 
    private val messageReceiver: BroadcastReceiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent) {
@@ -208,17 +203,13 @@ class MainActivity : AppCompatActivity() {
    }
 
    private fun updateMessages(initialSize: Int, updatedSize: Int) {
-      mainHandler.post {
-         recycler.post {
-            recycler.adapter?.notifyItemRangeInserted(initialSize, updatedSize)
-         }
-         val manager = recycler.layoutManager as LinearLayoutManager
-         if (
-            initialSize != updatedSize &&
-            manager.findLastVisibleItemPosition() == initialSize - 1
-         ) {
-            recycler.smoothScrollToPosition(updatedSize - 1)
-         }
+      recycler.adapter?.notifyItemRangeInserted(initialSize, updatedSize)
+      val manager = recycler.layoutManager as LinearLayoutManager
+      if (
+         initialSize != updatedSize &&
+         manager.findLastVisibleItemPosition() == initialSize - 1
+      ) {
+         recycler.smoothScrollToPosition(updatedSize - 1)
       }
    }
 

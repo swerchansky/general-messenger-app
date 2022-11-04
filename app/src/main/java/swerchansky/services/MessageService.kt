@@ -175,7 +175,6 @@ class MessageService : Service() {
             } catch (e: Exception) {
             }
          }
-         messages += newMessages
          if (newMessages.isNotEmpty()) {
             val updatedSize = messages.size
             val intent = Intent(TAG)

@@ -10,10 +10,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import swerchansky.Constants.CONFLICT
 import swerchansky.Constants.ERROR
+import swerchansky.Constants.LARGE_PAYLOAD
 import swerchansky.Constants.MESSAGES_LOADED
 import swerchansky.Constants.NEW_IMAGE
 import swerchansky.Constants.NEW_MESSAGES
+import swerchansky.Constants.NOT_FOUND
 import swerchansky.Constants.SEND_IMAGE
 import swerchansky.Constants.SEND_IMAGE_FAILED
 import swerchansky.Constants.SEND_MESSAGE
@@ -66,18 +69,11 @@ class MainActivity : AppCompatActivity() {
             MESSAGES_LOADED -> messageService?.let {
                recycler.scrollToPosition(it.messages.size - 1)
             }
-            SEND_MESSAGE_FAILED -> sendToast(
-               "server error with code: ${intent.getStringExtra("text")}",
-               this@MainActivity
-            )
-            SEND_IMAGE_FAILED -> sendToast(
-               "Cannot send image: ${intent.getStringExtra("text")}",
-               this@MainActivity
-            )
-            ERROR -> sendToast(
-               "${intent.getStringExtra("text")}",
-               this@MainActivity
-            )
+            SEND_MESSAGE_FAILED, SEND_IMAGE_FAILED, ERROR, NOT_FOUND, CONFLICT, LARGE_PAYLOAD ->
+               sendToast(
+                  "${intent.getStringExtra("text")}",
+                  this@MainActivity
+               )
             SERVER_ERROR -> sendToast(
                "Failed to connect to server",
                this@MainActivity
@@ -127,7 +123,6 @@ class MainActivity : AppCompatActivity() {
             mainActivity.scrollButton.visibility = View.INVISIBLE
          }
       }
-//      deleteDatabase("messages") // TODO: remove
    }
 
    override fun onStart() {

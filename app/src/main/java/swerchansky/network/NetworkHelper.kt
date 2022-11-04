@@ -25,31 +25,31 @@ class NetworkHelper {
       .serializationInclusion(JsonInclude.Include.NON_NULL)
       .build()
       .registerModule(KotlinModule.Builder().build())
-   private val retrofitReceiver = Retrofit.Builder()
+   private val retrofit = Retrofit.Builder()
       .baseUrl(URL)
       .addConverterFactory(ScalarsConverterFactory.create())
       .addConverterFactory(JacksonConverterFactory.create(mapper))
       .build()
       .create(APIService::class.java)
 
-   fun getLastMessages(from: Long, count: Long = 100): List<Message>? {
-      val response = retrofitReceiver.getLastMessages(from, count).execute()
-      return response.body()  // TODO handle errors
+   fun getLastMessages(from: Long, count: Long = 100): Pair<List<Message>?, Int> {
+      val response = retrofit.getLastMessages(from, count).execute()
+      return response.body() to response.code()
    }
 
-   fun downloadFullImage(link: String): Bitmap? {
-      val body = retrofitReceiver.getFullImage(link).execute().body()
-      body ?: return null
-      val bytes = body.bytes()
-      return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+   fun downloadFullImage(link: String): Pair<Bitmap?, Int> {
+      val response = retrofit.getFullImage(link).execute()
+      response.body() ?: return null to response.code()
+      val bytes = response.body()!!.bytes()
+      return BitmapFactory.decodeByteArray(bytes, 0, bytes.size) to response.code()
    }
 
    fun sendTextMessage(json: String): Int {
-      val response = retrofitReceiver.sendTextMessage(json).execute()
+      val response = retrofit.sendTextMessage(json).execute()
       return response.code()
    }
 
-   fun sendImageMessage(file: File, code: String): Int {
+   fun sendImageMessage(file: File): Int {
       val requestBody = RequestBody.create(MediaType.parse("multipart/form-data"), file)
       val imageFileBody = MultipartBody.Part.createFormData("picture", file.name, requestBody)
 
@@ -58,7 +58,7 @@ class NetworkHelper {
          "{\"from\":\"$USERNAME\"}"
       )
 
-      val response = retrofitReceiver.sendImageMessage(json, imageFileBody).execute()
+      val response = retrofit.sendImageMessage(json, imageFileBody).execute()
       return response.code()
    }
 }

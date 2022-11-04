@@ -18,17 +18,22 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import kotlinx.coroutines.*
-import swerchansky.Constants
+import kotlinx.coroutines.sync.Semaphore
+import swerchansky.Constants.CONFLICT
 import swerchansky.Constants.ERROR
 import swerchansky.Constants.FAILED_MESSAGES_SEND_INTERVAL
 import swerchansky.Constants.IMAGES_UPDATE_INTERVAL
+import swerchansky.Constants.LARGE_PAYLOAD
 import swerchansky.Constants.MESSAGES_LOADED
 import swerchansky.Constants.MESSAGES_UPDATE_INTERVAL
 import swerchansky.Constants.NEW_IMAGE
 import swerchansky.Constants.NEW_MESSAGES
+import swerchansky.Constants.NOT_FOUND
 import swerchansky.Constants.SEND_IMAGE
 import swerchansky.Constants.SEND_IMAGE_FAILED
 import swerchansky.Constants.SEND_MESSAGE
+import swerchansky.Constants.SEND_MESSAGE_FAILED
+import swerchansky.Constants.SERVER_ERROR
 import swerchansky.Constants.USERNAME
 import swerchansky.db.databases.FailedMessagesDatabase
 import swerchansky.db.databases.MessagesDatabase
@@ -53,6 +58,7 @@ class MessageService : Service() {
       const val MAIN_ACTIVITY_TAG = "MainActivity"
    }
 
+   private val semaphore = Semaphore(1)
    private val network = NetworkHelper()
    private val scope = CoroutineScope(Dispatchers.IO)
    private val messagesDatabase by lazy {
@@ -149,11 +155,14 @@ class MessageService : Service() {
 
    private suspend fun updateMessages() {
       withContext(Dispatchers.IO) {
-         val newMessages = try {
-            network.getLastMessages(messages.last().id!!) ?: mutableListOf()
+         semaphore.acquire()
+         val lastKnownMessageId = if (messages.isEmpty()) 0 else messages.last().id!!
+         val response = try {
+            network.getLastMessages(lastKnownMessageId)
          } catch (e: Exception) {
-            mutableListOf()
+            null
          }
+         val newMessages = response?.first ?: emptyList()
          val initialSize = messages.size
          newMessages.forEach {
             val imageId = Date().time
@@ -166,6 +175,7 @@ class MessageService : Service() {
             } catch (e: Exception) {
             }
          }
+         messages += newMessages
          if (newMessages.isNotEmpty()) {
             val updatedSize = messages.size
             val intent = Intent(TAG)
@@ -174,6 +184,10 @@ class MessageService : Service() {
             intent.putExtra("updatedSize", updatedSize)
             LocalBroadcastManager.getInstance(this@MessageService).sendBroadcast(intent)
          }
+         if ((response?.second ?: 500) >= 500) {
+            sendIntent(SERVER_ERROR)
+         }
+         semaphore.release()
       }
    }
 
@@ -198,13 +212,20 @@ class MessageService : Service() {
 
    private suspend fun updateImages() {
       withContext(Dispatchers.IO) {
+         semaphore.acquire()
          messages.forEachIndexed { index, it ->
             it.data.Image ?: return@forEachIndexed
             if (it.data.Image.bitmap == null) {
                try {
                   val imageId = messagesDatabase.getMessageItemIdById(it.id!!)
-                  writeImageToCache(it, imageId)
-                  messages[index].data.Image!!.bitmap = compressImage(getImageFromCache(imageId))
+                  var image = getImageFromCache(imageId)
+                  if (image != null) {
+                     messages[index].data.Image!!.bitmap = image
+                  } else {
+                     writeImageToCache(it, imageId)
+                     image = getImageFromCache(imageId)
+                  }
+                  messages[index].data.Image!!.bitmap = compressImage(image)
                   val intent = Intent(TAG)
                   intent.putExtra("type", NEW_IMAGE)
                   intent.putExtra("position", index)
@@ -214,6 +235,7 @@ class MessageService : Service() {
                }
             }
          }
+         semaphore.release()
       }
    }
 
@@ -239,9 +261,15 @@ class MessageService : Service() {
       }
       withContext(Dispatchers.IO) {
          try {
-            val responseCode = network.sendImageMessage(file, code)
+            val responseCode = network.sendImageMessage(file)
             if (responseCode != HttpURLConnection.HTTP_OK) {
-               sendIntent(SEND_IMAGE_FAILED, "Server error: http code $responseCode")
+               when (responseCode) {
+                  in 500..599 -> sendIntent(SERVER_ERROR)
+                  404 -> sendIntent(NOT_FOUND, "User not found")
+                  409 -> sendIntent(CONFLICT, "Image already exists")
+                  413 -> sendIntent(LARGE_PAYLOAD, "Image is too big")
+                  else -> sendIntent(SEND_IMAGE_FAILED, "Unknown error, http code: $responseCode")
+               }
             }
             scope.launch {
                updateMessages()
@@ -318,7 +346,15 @@ class MessageService : Service() {
                   println(json)
                   val responseCode = network.sendTextMessage(json)
                   if (responseCode != 200) {
-                     sendIntent(Constants.SEND_MESSAGE_FAILED, responseCode.toString())
+                     when (responseCode) {
+                        in 500..599 -> sendIntent(SERVER_ERROR)
+                        404 -> sendIntent(NOT_FOUND, "User not found")
+                        413 -> sendIntent(LARGE_PAYLOAD, "Message is too big")
+                        else -> sendIntent(
+                           SEND_MESSAGE_FAILED,
+                           "Unknown error, http code: $responseCode"
+                        )
+                     }
                   }
                   scope.launch {
                      updateMessages()
@@ -327,7 +363,7 @@ class MessageService : Service() {
                   failedMessagesDatabase.insertFailedMessage(message.toFailedEntity(null))
                }
             }
-         } // TODO handle error
+         }
       } else {
          sendIntent(ERROR, "Message can't be empty")
       }
@@ -367,7 +403,8 @@ class MessageService : Service() {
    }
 
    private fun writeImageToCache(message: Message, imageId: Long) {
-      val image = network.downloadFullImage(message.data.Image!!.link)
+      val response = network.downloadFullImage(message.data.Image!!.link)
+      val image = response.first
       image ?: return
       val file =
          File(this@MessageService.cacheDir, "$imageId.png").also { it.createNewFile() }
@@ -409,9 +446,7 @@ class MessageService : Service() {
             data = Data(
                Image = Image(
                   link = this.link!!,
-                  bitmap = compressImage(
-                     getImageFromCache(this.imageId)
-                  )
+                  bitmap = null
                )
             ),
             time = this.time
